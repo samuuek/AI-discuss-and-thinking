@@ -32,3 +32,14 @@ test('restores the current view from the URL hash after refresh', () => {
   render(<App />)
   expect(screen.getByRole('heading', { name: '你的思想，正在形成自己的脉络' })).toBeInTheDocument()
 })
+
+test('opens model settings with supported providers', async () => {
+  const user = userEvent.setup()
+  render(<App />)
+  await user.click(screen.getByRole('button', { name: '模型设置' }))
+  expect(screen.getByRole('heading', { name: '模型与 API' })).toBeInTheDocument()
+  expect(screen.getByText('豆包')).toBeInTheDocument()
+  expect(screen.getByText('千问')).toBeInTheDocument()
+  expect(screen.getByText('DeepSeek')).toBeInTheDocument()
+  expect(screen.getByText('自定义 API')).toBeInTheDocument()
+})

@@ -1,0 +1,6 @@
+import { CheckCircle2, KeyRound, Server, X } from 'lucide-react'
+import type { ModelInfo } from './model-api'
+
+export function ModelSettings({ models, onClose }: { models: ModelInfo[]; onClose: () => void }) {
+  return <div className="settings-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose() }}><section className="model-settings" role="dialog" aria-modal="true" aria-labelledby="model-settings-title"><header><div><span className="eyebrow">本地安全配置</span><h2 id="model-settings-title">模型与 API</h2></div><button aria-label="关闭模型设置" onClick={onClose}><X/></button></header><p className="settings-intro">密钥只由本地服务从 <code>.env.local</code> 读取，不会进入浏览器、对话记录或导出文件。</p><div className="provider-list">{models.filter(model => !model.demo).map(model => <article key={model.id}><div className="provider-icon"><Server size={18}/></div><div><h3>{model.provider}</h3><p>{model.name}</p></div><span className={model.available ? 'ready' : 'pending'}>{model.available ? <><CheckCircle2 size={14}/>已连接</> : <><KeyRound size={14}/>待配置</>}</span></article>)}</div><div className="settings-help"><b>配置方法</b><p>复制项目中的 <code>.env.example</code> 为 <code>.env.local</code>，填入对应 API Key、Base URL 和模型名称，然后重新启动网站。</p></div></section></div>
+}
