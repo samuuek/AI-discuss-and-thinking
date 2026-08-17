@@ -82,7 +82,10 @@ class DeterministicQueryAdapter {
     if (operation === 'topic:restore') {
       const [id, kind, title, summary, reason, source, color, status, created_at, updated_at] = values
       const current = this.topics.get(id)
-      const row = { id, kind, title, summary, reason, source, color, status, created_at: current?.created_at || created_at, updated_at }
+      const row = current ? { ...current, updated_at } : { id, kind, title, summary, reason, source, color, status, created_at, updated_at }
+      for (const [index, key] of ['kind', 'title', 'summary', 'reason', 'source', 'color', 'status'].entries()) {
+        if (current && values[10 + index * 2]) row[key] = values[11 + index * 2]
+      }
       this.topics.set(id, row)
       return [row]
     }
@@ -249,6 +252,33 @@ describe('Postgres store contract', () => {
 
     expect(latest).toEqual({ analystId: 'deepseek-web', fingerprint: 'v1', markdown: '新分析', updatedAt: '2026-08-16T02:00:00.000Z' })
     await expect(store.listWeeklyAnalyses('v1')).resolves.toEqual([latest])
+  })
+
+  test('restores a partial topic without replacing omitted existing fields', async () => {
+    const original = await store.createTopic({
+      id: 'partial-topic',
+      kind: '热点',
+      title: '原始标题',
+      summary: '原始摘要',
+      reason: '原始原因',
+      source: '原始来源',
+      color: 'blue',
+      status: '已沉淀',
+    })
+
+    await store.restoreBackup({ version: 1, topics: [{ id: 'partial-topic', title: '恢复后的标题' }] })
+
+    await expect(store.getTopic('partial-topic')).resolves.toMatchObject({
+      id: 'partial-topic',
+      kind: '热点',
+      title: '恢复后的标题',
+      summary: '原始摘要',
+      reason: '原始原因',
+      source: '原始来源',
+      color: 'blue',
+      status: '已沉淀',
+      createdAt: original.createdAt,
+    })
   })
 
   test('rolls back weekly source replacement when an item insert fails', async () => {

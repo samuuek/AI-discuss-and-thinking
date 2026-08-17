@@ -222,12 +222,21 @@ export function createPostgresStore(sql) {
           color: cleanText(item.color, 'green'),
           status: cleanText(item.status, '讨论中'),
         }
+        const provided = Object.fromEntries(['kind', 'title', 'summary', 'reason', 'source', 'color', 'status'].map(key => [key, Object.prototype.hasOwnProperty.call(item, key)]))
         const workspace = item.workspace
         const queries = [
           transactionSql => transactionSql`/* topic:restore */
             INSERT INTO topics (id, kind, title, summary, reason, source, color, status, created_at, updated_at)
             VALUES (${topic.id}, ${topic.kind}, ${topic.title}, ${topic.summary}, ${topic.reason}, ${topic.source}, ${topic.color}, ${topic.status}, ${timestamp}, ${timestamp})
-            ON CONFLICT (id) DO UPDATE SET kind = EXCLUDED.kind, title = EXCLUDED.title, summary = EXCLUDED.summary, reason = EXCLUDED.reason, source = EXCLUDED.source, color = EXCLUDED.color, status = EXCLUDED.status, updated_at = EXCLUDED.updated_at
+            ON CONFLICT (id) DO UPDATE SET
+              kind = CASE WHEN ${provided.kind} THEN ${item.kind ?? null} ELSE topics.kind END,
+              title = CASE WHEN ${provided.title} THEN ${item.title ?? null} ELSE topics.title END,
+              summary = CASE WHEN ${provided.summary} THEN ${item.summary ?? null} ELSE topics.summary END,
+              reason = CASE WHEN ${provided.reason} THEN ${item.reason ?? null} ELSE topics.reason END,
+              source = CASE WHEN ${provided.source} THEN ${item.source ?? null} ELSE topics.source END,
+              color = CASE WHEN ${provided.color} THEN ${item.color ?? null} ELSE topics.color END,
+              status = CASE WHEN ${provided.status} THEN ${item.status ?? null} ELSE topics.status END,
+              updated_at = EXCLUDED.updated_at
             RETURNING *
           `,
           transactionSql => transactionSql`/* workspace:ensure */
