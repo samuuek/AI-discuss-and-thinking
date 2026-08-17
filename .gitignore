@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+tmp/
+.env
+.env.local
+data/
+.worktrees/
+.vercel
+exports/
+output/
