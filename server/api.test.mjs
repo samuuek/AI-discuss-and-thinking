@@ -48,6 +48,28 @@ describe('local HTTP API', () => {
     expect(await response.json()).toEqual({ error: '议题标题不能为空', code: 'VALIDATION_ERROR' })
   })
 
+  test('rejects an invalid backup as a client validation error', async () => {
+    const response = await fetch(`${origin}/api/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version: 2, topics: [] }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: '备份文件格式不受支持', code: 'VALIDATION_ERROR' })
+  })
+
+  test('rejects an unsupported chat model as a client validation error', async () => {
+    const response = await fetch(`${origin}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'unsupported-model', messages: [{ role: 'user', content: '你好' }] }),
+    })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({ error: '不支持的模型', code: 'VALIDATION_ERROR' })
+  })
+
   test('persists workspace changes through the API', async () => {
     const response = await fetch(`${origin}/api/workspaces/ai-memory`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ note: '只写给自己' }) })
     expect(response.status).toBe(200)

@@ -113,6 +113,7 @@ export async function handleApiRequest(request, response, { store, env = process
       if (request.method === 'POST' && path === '/api/chat') {
         const input = await readJson(request)
         if (!input.model || !Array.isArray(input.messages) || input.messages.length === 0) throw new ApiError('请选择模型并输入消息')
+        if (!publicModels(env).some(model => model.id === input.model)) throw new ApiError('不支持的模型')
         if (input.messages.length > 500 || input.messages.some(message => !['system', 'user', 'assistant'].includes(message.role) || typeof message.content !== 'string' || !message.content.trim() || message.content.length > 200_000)) throw new ApiError('消息格式无效')
         if (input.topicId && !await store.getTopic(input.topicId)) throw new ApiError('思考空间不存在', 404, 'NOT_FOUND')
         const lastUser = [...input.messages].reverse().find(message => message.role === 'user')
@@ -122,7 +123,11 @@ export async function handleApiRequest(request, response, { store, env = process
         return send(response, 200, { content, message })
       }
       if (request.method === 'GET' && path === '/api/backup') return send(response, 200, await store.exportBackup())
-      if (request.method === 'POST' && path === '/api/restore') return send(response, 200, await store.restoreBackup(await readJson(request)))
+      if (request.method === 'POST' && path === '/api/restore') {
+        const backup = await readJson(request)
+        if (!backup || backup.version !== 1 || !Array.isArray(backup.topics)) throw new ApiError('备份文件格式不受支持')
+        return send(response, 200, await store.restoreBackup(backup))
+      }
       if (!path.startsWith('/api/') && await serveStatic(request, response, distDir)) return
       throw new ApiError('接口不存在', 404, 'NOT_FOUND')
   } catch (error) {
