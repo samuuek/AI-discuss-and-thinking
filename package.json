@@ -13,11 +13,12 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
     "@vitejs/plugin-react": "latest",
     "lucide-react": "latest",
-    "vite": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "vite": "latest"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "latest",
