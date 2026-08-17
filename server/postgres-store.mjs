@@ -26,7 +26,7 @@ function weeklyAnalysisRow(row) {
 }
 
 export function createPostgresStore(sql) {
-  if (!sql || typeof sql.query !== 'function') throw new TypeError('需要有效的 Postgres 查询适配器')
+  if (typeof sql !== 'function' || typeof sql.query !== 'function' || typeof sql.transaction !== 'function') throw new TypeError('需要有效的 Postgres 查询适配器')
 
   const query = async (operation, text, values = []) => {
     const result = await sql.query(`/* ${operation} */\n${text}`, values)
@@ -151,18 +151,20 @@ export function createPostgresStore(sql) {
     },
 
     async replaceWeeklySource(sourceId, items, refreshedAt = now()) {
-      await query('weekly:delete', `DELETE FROM weekly_items WHERE source_id = $1`, [sourceId])
-      for (const item of items) {
-        await query('weekly:item:create', `
+      await sql.transaction(transactionSql => [
+        transactionSql`/* weekly:delete */
+          DELETE FROM weekly_items WHERE source_id = ${sourceId}
+        `,
+        ...items.map(item => transactionSql`/* weekly:item:create */
           INSERT INTO weekly_items (id, source_id, organization, title, url, published_at, category, summary, significance)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        `, [item.id, sourceId, item.organization, item.title, item.url, item.publishedAt, item.category, item.summary || '', item.significance || ''])
-      }
-      await query('weekly:source-success', `
-        INSERT INTO weekly_source_status (source_id, last_success_at, last_attempt_at, error)
-        VALUES ($1, $2, $3, NULL)
-        ON CONFLICT (source_id) DO UPDATE SET last_success_at = EXCLUDED.last_success_at, last_attempt_at = EXCLUDED.last_attempt_at, error = NULL
-      `, [sourceId, refreshedAt, refreshedAt])
+          VALUES (${item.id}, ${sourceId}, ${item.organization}, ${item.title}, ${item.url}, ${item.publishedAt}, ${item.category}, ${item.summary || ''}, ${item.significance || ''})
+        `),
+        transactionSql`/* weekly:source-success */
+          INSERT INTO weekly_source_status (source_id, last_success_at, last_attempt_at, error)
+          VALUES (${sourceId}, ${refreshedAt}, ${refreshedAt}, NULL)
+          ON CONFLICT (source_id) DO UPDATE SET last_success_at = EXCLUDED.last_success_at, last_attempt_at = EXCLUDED.last_attempt_at, error = NULL
+        `,
+      ])
     },
 
     async markWeeklySourceError(sourceId, message, attemptedAt = now()) {
@@ -208,14 +210,53 @@ export function createPostgresStore(sql) {
 
     async restoreBackup(backup) {
       if (!backup || backup.version !== 1 || !Array.isArray(backup.topics)) throw new Error('备份文件格式不受支持')
-      for (const item of backup.topics) {
-        if (await api.getTopic(item.id)) await api.updateTopic(item.id, item)
-        else await api.createTopic(item)
-        if (item.workspace) {
-          await api.updateWorkspace(item.id, item.workspace)
-          for (const message of item.workspace.messages || []) await api.addMessage(item.id, message)
+      const statements = backup.topics.flatMap(item => {
+        const timestamp = now()
+        const topic = {
+          id: cleanText(item.id) || randomUUID(),
+          kind: cleanText(item.kind, '为你推荐'),
+          title: cleanText(item.title),
+          summary: cleanText(item.summary),
+          reason: cleanText(item.reason, '你创建的议题'),
+          source: cleanText(item.source, '私人议题'),
+          color: cleanText(item.color, 'green'),
+          status: cleanText(item.status, '讨论中'),
         }
-      }
+        const workspace = item.workspace
+        const queries = [
+          transactionSql => transactionSql`/* topic:restore */
+            INSERT INTO topics (id, kind, title, summary, reason, source, color, status, created_at, updated_at)
+            VALUES (${topic.id}, ${topic.kind}, ${topic.title}, ${topic.summary}, ${topic.reason}, ${topic.source}, ${topic.color}, ${topic.status}, ${timestamp}, ${timestamp})
+            ON CONFLICT (id) DO UPDATE SET kind = EXCLUDED.kind, title = EXCLUDED.title, summary = EXCLUDED.summary, reason = EXCLUDED.reason, source = EXCLUDED.source, color = EXCLUDED.color, status = EXCLUDED.status, updated_at = EXCLUDED.updated_at
+            RETURNING *
+          `,
+          transactionSql => transactionSql`/* workspace:ensure */
+            INSERT INTO workspaces (topic_id, updated_at)
+            VALUES (${topic.id}, ${timestamp})
+            ON CONFLICT (topic_id) DO NOTHING
+            RETURNING *
+          `,
+        ]
+        if (item.workspace) {
+          queries.push(transactionSql => transactionSql`/* workspace:restore */
+            INSERT INTO workspaces (topic_id, note, reflection, resources, summary, mind_map, selected_model, updated_at)
+            VALUES (${topic.id}, ${workspace.note || ''}, ${workspace.reflection || ''}, ${workspace.resources || ''}, ${workspace.summary || ''}, ${workspace.mindMap || ''}, ${workspace.selectedModel || 'siyu-demo'}, ${timestamp})
+            ON CONFLICT (topic_id) DO UPDATE SET note = EXCLUDED.note, reflection = EXCLUDED.reflection, resources = EXCLUDED.resources, summary = EXCLUDED.summary, mind_map = EXCLUDED.mind_map, selected_model = EXCLUDED.selected_model, updated_at = EXCLUDED.updated_at
+            RETURNING *
+          `)
+          for (const itemMessage of workspace.messages || []) {
+            const message = { id: cleanText(itemMessage.id) || randomUUID(), role: itemMessage.role, content: cleanText(itemMessage.content), modelId: cleanText(itemMessage.modelId) || null, createdAt: cleanText(itemMessage.createdAt) || timestamp }
+            queries.push(transactionSql => transactionSql`/* message:create */
+              INSERT INTO messages (id, topic_id, role, content, model_id, created_at)
+              VALUES (${message.id}, ${topic.id}, ${message.role}, ${message.content}, ${message.modelId}, ${message.createdAt})
+              ON CONFLICT (id) DO NOTHING
+              RETURNING *
+            `)
+          }
+        }
+        return queries
+      })
+      await sql.transaction(transactionSql => statements.map(buildQuery => buildQuery(transactionSql)))
       return { restored: true, topics: backup.topics.length }
     },
   }
