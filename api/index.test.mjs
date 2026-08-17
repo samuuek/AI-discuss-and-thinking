@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { readFile } from 'node:fs/promises'
 import { describe, expect, test } from 'vitest'
 import { createVercelHandler } from './index.mjs'
 
@@ -22,6 +23,16 @@ function createResponse() {
 }
 
 describe('Vercel API entry', () => {
+  test('selects Node 22 through package engines without a custom function runtime', async () => {
+    const [vercelConfig, packageManifest] = await Promise.all([
+      readFile(new URL('../vercel.json', import.meta.url), 'utf8').then(JSON.parse),
+      readFile(new URL('../package.json', import.meta.url), 'utf8').then(JSON.parse),
+    ])
+
+    expect(vercelConfig.functions?.['api/index.mjs']?.runtime).toBeUndefined()
+    expect(packageManifest.engines).toEqual({ node: '22.x' })
+  })
+
   test('returns a successful health response with an injected async store', async () => {
     const store = { async close() {} }
     const handler = createVercelHandler({ store })
@@ -95,6 +106,28 @@ describe('Vercel API entry', () => {
     expect(JSON.parse(response.body)).toEqual({
       error: '数据库服务暂时不可用',
       code: 'DATABASE_UNAVAILABLE',
+    })
+  })
+
+  test('returns a generic 503 when an asynchronous store operation fails', async () => {
+    const marker = 'DO_NOT_EXPOSE_ASYNC_FAILURE'
+    const handler = createVercelHandler({
+      store: {
+        async listTopics() {
+          throw new Error(`database authentication failed: ${marker}`)
+        },
+      },
+    })
+    const response = createResponse()
+
+    await handler({ method: 'GET', url: '/api/topics' }, response)
+    await response.finished
+
+    expect(response.statusCode).toBe(503)
+    expect(response.body).not.toContain(marker)
+    expect(JSON.parse(response.body)).toEqual({
+      error: '服务暂时不可用',
+      code: 'SERVICE_UNAVAILABLE',
     })
   })
 

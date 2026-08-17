@@ -126,9 +126,9 @@ export async function handleApiRequest(request, response, { store, env = process
       if (!path.startsWith('/api/') && await serveStatic(request, response, distDir)) return
       throw new ApiError('接口不存在', 404, 'NOT_FOUND')
   } catch (error) {
-    const status = error instanceof ApiError ? error.status : 400
-    const code = error instanceof ApiError ? error.code : 'REQUEST_FAILED'
-    const message = error instanceof Error ? error.message : '请求失败'
+    const status = error instanceof ApiError ? error.status : 503
+    const code = error instanceof ApiError ? error.code : 'SERVICE_UNAVAILABLE'
+    const message = error instanceof ApiError ? error.message : '服务暂时不可用'
     send(response, status, { error: message, code })
   }
 }
