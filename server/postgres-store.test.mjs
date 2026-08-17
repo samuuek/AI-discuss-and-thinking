@@ -254,6 +254,67 @@ describe('Postgres store contract', () => {
     await expect(store.listWeeklyAnalyses('v1')).resolves.toEqual([latest])
   })
 
+  test('normalizes timestamp values returned as driver Date objects', async () => {
+    const topic = {
+      id: 'date-topic', kind: '热点', title: '驱动时间类型', summary: '', reason: '', source: '', color: 'blue', status: '讨论中',
+      created_at: new Date('2026-08-16T01:02:03.000Z'), updated_at: new Date('2026-08-16T04:05:06.000Z'),
+    }
+    const workspace = {
+      topic_id: 'date-topic', note: '', reflection: '', resources: '', summary: '', mind_map: '', selected_model: 'siyu-demo',
+      updated_at: new Date('2026-08-16T07:08:09.000Z'),
+    }
+    const message = {
+      id: 'date-message', role: 'assistant', content: '时间应为 ISO 字符串', model_id: null,
+      created_at: new Date('2026-08-16T10:11:12.000Z'),
+    }
+    const weeklyItem = {
+      id: 'date-item', source_id: 'openai', organization: 'OpenAI', title: '日期驱动行', url: 'https://openai.com/date',
+      published_at: new Date('2026-08-16T13:14:15.000Z'), category: '产品', summary: '', significance: '',
+    }
+    const dateDriver = () => { throw new Error('tagged queries are not used by this test') }
+    dateDriver.query = async text => {
+      const operation = text.match(/\/\*\s*([\w:-]+)\s*\*\//)?.[1]
+      if (operation === 'topic:list' || operation === 'topic:get') return [topic]
+      if (operation === 'workspace:ensure') return []
+      if (operation === 'workspace:get') return [workspace]
+      if (operation === 'message:list') return [message]
+      if (operation === 'weekly:item:list') return [weeklyItem]
+      if (operation === 'weekly:source:list') return [
+        { source_id: 'december', last_success_at: new Date('2026-12-01T00:00:00.000Z'), last_attempt_at: new Date('2026-12-01T01:00:00.000Z'), error: null },
+        { source_id: 'may', last_success_at: new Date('2026-05-01T00:00:00.000Z'), last_attempt_at: new Date('2026-05-01T01:00:00.000Z'), error: null },
+      ]
+      if (operation === 'analysis:list') return [{ analyst_id: 'deepseek-web', fingerprint: 'date-v1', markdown: '日期分析', updated_at: new Date('2026-08-16T16:17:18.000Z') }]
+      throw new Error(`Unsupported date driver query: ${operation}`)
+    }
+    dateDriver.transaction = async () => []
+    const dateStore = createPostgresStore(dateDriver)
+
+    const [returnedTopic, returnedWorkspace, snapshot, backup, analyses] = await Promise.all([
+      dateStore.getTopic('date-topic'),
+      dateStore.getWorkspace('date-topic'),
+      dateStore.getWeeklySnapshot(new Date('2026-12-31T00:00:00.000Z')),
+      dateStore.exportBackup(),
+      dateStore.listWeeklyAnalyses(),
+    ])
+
+    expect(returnedTopic).toMatchObject({ createdAt: '2026-08-16T01:02:03.000Z', updatedAt: '2026-08-16T04:05:06.000Z' })
+    expect(returnedWorkspace).toMatchObject({
+      updatedAt: '2026-08-16T07:08:09.000Z',
+      messages: [expect.objectContaining({ createdAt: '2026-08-16T10:11:12.000Z' })],
+    })
+    expect(snapshot).toMatchObject({
+      items: [expect.objectContaining({ publishedAt: '2026-08-16T13:14:15.000Z' })],
+      sources: [
+        expect.objectContaining({ lastSuccessAt: '2026-12-01T00:00:00.000Z', lastAttemptAt: '2026-12-01T01:00:00.000Z', error: undefined }),
+        expect.objectContaining({ lastSuccessAt: '2026-05-01T00:00:00.000Z', lastAttemptAt: '2026-05-01T01:00:00.000Z', error: undefined }),
+      ],
+      updatedAt: '2026-12-01T00:00:00.000Z',
+    })
+    expect(backup.topics[0]).toMatchObject({ createdAt: '2026-08-16T01:02:03.000Z', updatedAt: '2026-08-16T04:05:06.000Z' })
+    expect(backup.topics[0].workspace).toMatchObject({ updatedAt: '2026-08-16T07:08:09.000Z' })
+    expect(analyses).toEqual([{ analystId: 'deepseek-web', fingerprint: 'date-v1', markdown: '日期分析', updatedAt: '2026-08-16T16:17:18.000Z' }])
+  })
+
   test('restores a partial topic without replacing omitted existing fields', async () => {
     const original = await store.createTopic({
       id: 'partial-topic',

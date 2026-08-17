@@ -2,27 +2,28 @@ import { randomUUID } from 'node:crypto'
 
 const now = () => new Date().toISOString()
 const cleanText = (value, fallback = '') => typeof value === 'string' ? value.trim() : fallback
+const timestampValue = value => value instanceof Date ? value.toISOString() : value
 
 function topicRow(row) {
   if (!row) return null
-  return { id: row.id, kind: row.kind, title: row.title, summary: row.summary, reason: row.reason, source: row.source, color: row.color, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }
+  return { id: row.id, kind: row.kind, title: row.title, summary: row.summary, reason: row.reason, source: row.source, color: row.color, status: row.status, createdAt: timestampValue(row.created_at), updatedAt: timestampValue(row.updated_at) }
 }
 
 function messageRow(row) {
-  return { id: row.id, role: row.role, content: row.content, modelId: row.model_id || undefined, createdAt: row.created_at }
+  return { id: row.id, role: row.role, content: row.content, modelId: row.model_id || undefined, createdAt: timestampValue(row.created_at) }
 }
 
 function workspaceRow(row, messages) {
   if (!row) return null
-  return { topicId: row.topic_id, note: row.note, reflection: row.reflection, resources: row.resources, summary: row.summary, mindMap: row.mind_map, selectedModel: row.selected_model, updatedAt: row.updated_at, messages }
+  return { topicId: row.topic_id, note: row.note, reflection: row.reflection, resources: row.resources, summary: row.summary, mindMap: row.mind_map, selectedModel: row.selected_model, updatedAt: timestampValue(row.updated_at), messages }
 }
 
 function weeklyItemRow(row) {
-  return { id: row.id, sourceId: row.source_id, organization: row.organization, title: row.title, url: row.url, publishedAt: row.published_at, category: row.category, summary: row.summary, significance: row.significance }
+  return { id: row.id, sourceId: row.source_id, organization: row.organization, title: row.title, url: row.url, publishedAt: timestampValue(row.published_at), category: row.category, summary: row.summary, significance: row.significance }
 }
 
 function weeklyAnalysisRow(row) {
-  return { analystId: row.analyst_id, fingerprint: row.fingerprint, markdown: row.markdown, updatedAt: row.updated_at }
+  return { analystId: row.analyst_id, fingerprint: row.fingerprint, markdown: row.markdown, updatedAt: timestampValue(row.updated_at) }
 }
 
 export function createPostgresStore(sql) {
@@ -180,7 +181,7 @@ export function createPostgresStore(sql) {
       const itemRows = await query('weekly:item:list', `SELECT * FROM weekly_items WHERE published_at >= $1 AND published_at <= $2 ORDER BY published_at DESC`, [cutoff, reference.toISOString()])
       const sourceRows = await query('weekly:source:list', `SELECT * FROM weekly_source_status ORDER BY source_id`)
       const items = itemRows.map(weeklyItemRow)
-      const sources = sourceRows.map(row => ({ id: row.source_id, lastSuccessAt: row.last_success_at || undefined, lastAttemptAt: row.last_attempt_at || undefined, error: row.error || undefined }))
+      const sources = sourceRows.map(row => ({ id: row.source_id, lastSuccessAt: timestampValue(row.last_success_at) || undefined, lastAttemptAt: timestampValue(row.last_attempt_at) || undefined, error: row.error || undefined }))
       const updatedAt = sources.map(source => source.lastSuccessAt).filter(Boolean).sort().at(-1)
       return { items, sources, updatedAt, stale: !updatedAt || reference.getTime() - new Date(updatedAt).getTime() > 6 * 60 * 60 * 1000 }
     },
