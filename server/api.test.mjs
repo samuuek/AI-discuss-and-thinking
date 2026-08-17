@@ -26,6 +26,22 @@ describe('local HTTP API', () => {
     expect(payload.topics).toHaveLength(3)
   })
 
+  test('awaits asynchronous topic listings', async () => {
+    const asyncStore = {
+      listTopics: async () => [{ id: 'async-topic', title: '异步议题' }],
+    }
+    const asyncServer = createApiServer({ store: asyncStore, env: {} })
+    await new Promise(resolve => asyncServer.listen(0, '127.0.0.1', resolve))
+
+    try {
+      const asyncOrigin = `http://127.0.0.1:${asyncServer.address().port}`
+      const payload = await fetch(`${asyncOrigin}/api/topics`).then(response => response.json())
+      expect(payload.topics).toEqual([{ id: 'async-topic', title: '异步议题' }])
+    } finally {
+      await new Promise(resolve => asyncServer.close(resolve))
+    }
+  })
+
   test('validates writes and uses a consistent error shape', async () => {
     const response = await fetch(`${origin}/api/topics`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: '' }) })
     expect(response.status).toBe(400)
