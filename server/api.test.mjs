@@ -136,4 +136,10 @@ describe('local HTTP API', () => {
     expect(payload.items.map(item => item.id)).toContain('weekly-a')
     expect(payload.sources.find(source => source.id === 'meta')?.error).toBe('timeout')
   })
+
+  test('saves a weekly translation alongside analyst results', async () => {
+    const response = await fetch(`${origin}/api/weekly/analyses`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ analystId: 'weekly-translation', fingerprint: 'material-v1', markdown: '[{"id":"a","title":"中文标题","summary":"中文摘要"}]' }) })
+    expect(response.status).toBe(201)
+    expect((await response.json()).analysis.analystId).toBe('weekly-translation')
+  })
 })

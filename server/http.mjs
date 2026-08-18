@@ -77,7 +77,7 @@ export async function handleApiRequest(request, response, { store, env = process
       }
       if (request.method === 'POST' && path === '/api/weekly/analyses') {
         const input = await readJson(request)
-        if (!['deepseek-web', 'qwen-web', 'kimi-web'].includes(input.analystId)) throw new ApiError('不支持的分析模型')
+        if (!['deepseek-web', 'qwen-web', 'kimi-web', 'weekly-translation'].includes(input.analystId)) throw new ApiError('不支持的分析模型')
         if (typeof input.fingerprint !== 'string' || !input.fingerprint.trim()) throw new ApiError('材料版本不能为空')
         if (typeof input.markdown !== 'string' || !input.markdown.trim() || input.markdown.length > 200_000) throw new ApiError('分析内容无效')
         return send(response, 201, { analysis: await store.saveWeeklyAnalysis({ analystId: input.analystId, fingerprint: input.fingerprint.trim(), markdown: input.markdown.trim() }) })
