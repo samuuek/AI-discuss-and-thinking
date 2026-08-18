@@ -4,11 +4,11 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "^/api/(.*)$",
-      "destination": "/api/index?__siyu_api_path=$1"
+      "source": "/api/:path*",
+      "destination": "/api/index?__siyu_api_path=:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]

@@ -23,6 +23,15 @@ function createResponse() {
 }
 
 describe('Vercel API entry', () => {
+  test('routes API paths to the serverless function before the SPA fallback', async () => {
+    const config = await readFile(new URL('../vercel.json', import.meta.url), 'utf8').then(JSON.parse)
+
+    expect(config.rewrites).toEqual([
+      { source: '/api/:path*', destination: '/api/index?__siyu_api_path=:path*' },
+      { source: '/:path*', destination: '/index.html' },
+    ])
+  })
+
   test('selects Node 22 through package engines without a custom function runtime', async () => {
     const [vercelConfig, packageManifest] = await Promise.all([
       readFile(new URL('../vercel.json', import.meta.url), 'utf8').then(JSON.parse),
