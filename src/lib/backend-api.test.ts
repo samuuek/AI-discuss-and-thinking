@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { createTopic, fetchTopics, fetchWorkspace, updateWorkspace } from './backend-api'
+import { createTopic, ensureDailyTopics, fetchTopics, fetchWorkspace, updateWorkspace } from './backend-api'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -17,6 +17,12 @@ describe('backend API client', () => {
     await expect(createTopic({ title: '新议题' })).resolves.toMatchObject({ id: 'new' })
     await expect(updateWorkspace('new', { note: '旁注' })).resolves.toMatchObject({ note: '旁注' })
     expect(fetcher).toHaveBeenLastCalledWith('/api/workspaces/new', expect.objectContaining({ method: 'PATCH' }))
+  })
+
+  test('requests the persisted daily topic set', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ topics: [{ id: 'daily-1', title: '今日议题' }] }) }))
+    await expect(ensureDailyTopics()).resolves.toEqual([{ id: 'daily-1', title: '今日议题' }])
+    expect(fetch).toHaveBeenCalledWith('/api/topics/daily', expect.objectContaining({ method: 'POST' }))
   })
 
   test('loads a complete workspace and exposes backend errors', async () => {
