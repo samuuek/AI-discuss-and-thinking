@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { buildWeeklyMaterial, compareWeeklyAnalyses, parseWeeklyAnalysis } from './weekly-handoff'
+import { buildWeeklyMaterial, buildWeeklyTranslationPrompt, compareWeeklyAnalyses, parseWeeklyAnalysis, parseWeeklyTranslations } from './weekly-handoff'
 import type { WeeklyItem } from './weekly-api'
 
 const itemA: WeeklyItem = { id: 'a', sourceId: 'openai', organization: 'OpenAI', title: 'A', url: 'https://openai.com/a', publishedAt: '2026-08-15T00:00:00Z', category: '产品', summary: 'A summary', significance: '' }
@@ -26,4 +26,18 @@ test('separates consensus, disagreement, and unverified claims', () => {
   expect(result.consensus).toContain('AI-001')
   expect(result.disagreements).toContain('AI-001')
   expect(result.unverified.join(' ')).toContain('没有编号的判断')
+})
+
+test('builds and validates a Chinese translation handoff without changing item ids', () => {
+  const prompt = buildWeeklyTranslationPrompt([itemA, itemB])
+  expect(prompt).toContain('只输出 JSON 数组')
+  expect(prompt).toContain('"id":"a"')
+  expect(parseWeeklyTranslations('[{"id":"a","title":"中文标题 A","summary":"中文摘要 A"},{"id":"b","title":"中文标题 B","summary":"中文摘要 B"}]', [itemA, itemB])).toEqual([
+    { id: 'a', title: '中文标题 A', summary: '中文摘要 A' },
+    { id: 'b', title: '中文标题 B', summary: '中文摘要 B' },
+  ])
+})
+
+test('rejects translations that omit an official item', () => {
+  expect(() => parseWeeklyTranslations('[{"id":"a","title":"中文标题 A","summary":"中文摘要 A"}]', [itemA, itemB])).toThrow('译文必须覆盖当前全部消息')
 })

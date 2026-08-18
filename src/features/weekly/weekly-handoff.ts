@@ -17,6 +17,30 @@ export async function buildWeeklyMaterial(items: WeeklyItem[]) {
   return { fingerprint, prompt }
 }
 
+export type WeeklyTranslation = { id: string; title: string; summary: string }
+
+export function buildWeeklyTranslationPrompt(items: WeeklyItem[]) {
+  const material = items.map(item => JSON.stringify({ id: item.id, title: item.title, summary: item.summary || '' })).join('\n')
+  return `请把下面每条 AI 官方消息的 title 和 summary 翻译成简洁、自然、准确的简体中文。id 必须原样保留，不要增删消息，不要补充原文没有的信息。只输出 JSON 数组，不要 Markdown 代码块或解释。数组中每项格式为 {"id":"原 id","title":"中文标题","summary":"中文摘要"}。\n\n${material}`
+}
+
+export function parseWeeklyTranslations(value: string, items: WeeklyItem[]): WeeklyTranslation[] {
+  const cleaned = value.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  let parsed: unknown
+  try { parsed = JSON.parse(cleaned) } catch { throw new Error('译文不是有效的 JSON 数组') }
+  if (!Array.isArray(parsed)) throw new Error('译文不是有效的 JSON 数组')
+  const expected = new Set(items.map(item => item.id))
+  const translations = parsed.map(entry => {
+    if (!entry || typeof entry !== 'object') throw new Error('译文格式无效')
+    const { id, title, summary } = entry as Record<string, unknown>
+    if (typeof id !== 'string' || !expected.has(id) || typeof title !== 'string' || !title.trim() || typeof summary !== 'string') throw new Error('译文格式无效')
+    if (title.length > 500 || summary.length > 5000) throw new Error('译文内容过长')
+    return { id, title: title.trim(), summary: summary.trim() }
+  })
+  if (translations.length !== expected.size || new Set(translations.map(item => item.id)).size !== expected.size) throw new Error('译文必须覆盖当前全部消息')
+  return translations
+}
+
 const headings = ['三项关键进展', '趋势判断', '可能被高估的进展及理由', '尚待核实的问题', '一句总结']
 
 export function parseWeeklyAnalysis(markdown: string): ParsedAnalysis {
