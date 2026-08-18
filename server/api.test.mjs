@@ -26,6 +26,25 @@ describe('local HTTP API', () => {
     expect(payload.topics).toHaveLength(3)
   })
 
+  test('creates one stable set of daily topics and does not duplicate it on refresh', async () => {
+    await new Promise(resolve => server.close(resolve))
+    server = createApiServer({ store, env: {}, now: () => new Date('2026-08-18T02:00:00.000Z') })
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+    origin = `http://127.0.0.1:${server.address().port}`
+
+    const first = await fetch(`${origin}/api/topics/daily`, { method: 'POST' }).then(response => response.json())
+    const second = await fetch(`${origin}/api/topics/daily`, { method: 'POST' }).then(response => response.json())
+
+    expect(first.topics).toHaveLength(3)
+    expect(first.topics.map(topic => topic.id)).toEqual([
+      'daily-2026-08-18-1',
+      'daily-2026-08-18-2',
+      'daily-2026-08-18-3',
+    ])
+    expect(second.topics.map(topic => topic.id)).toEqual(first.topics.map(topic => topic.id))
+    expect(store.listTopics().filter(topic => topic.id.startsWith('daily-2026-08-18-'))).toHaveLength(3)
+  })
+
   test('awaits asynchronous topic listings', async () => {
     const asyncStore = {
       listTopics: async () => [{ id: 'async-topic', title: '异步议题' }],

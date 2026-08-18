@@ -4,6 +4,7 @@ import { extname, join, normalize } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { chatWithModel, publicModels } from './models.mjs'
 import { fetchWeeklySource, WEEKLY_SOURCES } from './weekly-sources.mjs'
+import { dailyTopicDrafts } from './daily-topics.mjs'
 
 class ApiError extends Error {
   constructor(message, status = 400, code = 'VALIDATION_ERROR') { super(message); this.status = status; this.code = code }
@@ -55,7 +56,7 @@ async function serveStatic(request, response, distDir) {
   }
 }
 
-export async function handleApiRequest(request, response, { store, env = process.env, fetcher = fetch, distDir, weeklySources = WEEKLY_SOURCES, weeklyFetcher = fetchWeeklySource } = {}) {
+export async function handleApiRequest(request, response, { store, env = process.env, fetcher = fetch, distDir, weeklySources = WEEKLY_SOURCES, weeklyFetcher = fetchWeeklySource, now = () => new Date() } = {}) {
   const url = new URL(request.url, 'http://localhost')
   const path = decodeURIComponent(url.pathname)
   try {
@@ -82,6 +83,13 @@ export async function handleApiRequest(request, response, { store, env = process
         return send(response, 201, { analysis: await store.saveWeeklyAnalysis({ analystId: input.analystId, fingerprint: input.fingerprint.trim(), markdown: input.markdown.trim() }) })
       }
       if (request.method === 'GET' && path === '/api/topics') return send(response, 200, { topics: await store.listTopics({ query: url.searchParams.get('q') || '', status: url.searchParams.get('status') || '' }) })
+      if (request.method === 'POST' && path === '/api/topics/daily') {
+        const topics = []
+        for (const draft of dailyTopicDrafts(now())) {
+          topics.push(await store.getTopic(draft.id) || await store.createTopic(draft))
+        }
+        return send(response, 200, { topics })
+      }
       if (request.method === 'POST' && path === '/api/topics') {
         const input = await readJson(request); validateTopic(input)
         return send(response, 201, { topic: await store.createTopic(input) })

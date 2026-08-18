@@ -26,6 +26,10 @@ export async function fetchTopics(): Promise<Topic[]> {
   return (await request<{ topics: Topic[] }>('/api/topics')).topics
 }
 
+export async function ensureDailyTopics(): Promise<Topic[]> {
+  return (await request<{ topics: Topic[] }>('/api/topics/daily', json('POST', {}))).topics
+}
+
 export async function createTopic(input: Partial<Topic> & { title: string }): Promise<Topic> {
   return (await request<{ topic: Topic }>('/api/topics', json('POST', input))).topic
 }
