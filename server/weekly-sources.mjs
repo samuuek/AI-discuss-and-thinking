@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto'
 
 export const WEEKLY_SOURCES = [
-  { id: 'openai', organization: 'OpenAI', url: 'https://openai.com/news/', allowedHosts: ['openai.com'], category: '产品' },
+  { id: 'openai', organization: 'OpenAI', url: 'https://openai.com/news/rss.xml', allowedHosts: ['openai.com'], category: '产品' },
   { id: 'anthropic', organization: 'Anthropic', url: 'https://www.anthropic.com/news', allowedHosts: ['anthropic.com'], category: '模型' },
-  { id: 'deepmind', organization: 'Google DeepMind', url: 'https://deepmind.google/discover/blog/', allowedHosts: ['deepmind.google'], category: '研究' },
-  { id: 'microsoft', organization: 'Microsoft', url: 'https://blogs.microsoft.com/', allowedHosts: ['blogs.microsoft.com'], category: '产品' },
+  { id: 'deepmind', organization: 'Google DeepMind', url: 'https://deepmind.google/blog/rss.xml', allowedHosts: ['deepmind.google'], category: '研究' },
+  { id: 'microsoft', organization: 'Microsoft', url: 'https://blogs.microsoft.com/feed/', allowedHosts: ['blogs.microsoft.com'], category: '产品' },
   { id: 'meta', organization: 'Meta AI', url: 'https://ai.meta.com/blog/', allowedHosts: ['ai.meta.com'], category: '研究' },
-  { id: 'huggingface', organization: 'Hugging Face', url: 'https://huggingface.co/blog', allowedHosts: ['huggingface.co'], category: '开源' },
+  { id: 'huggingface', organization: 'Hugging Face', url: 'https://huggingface.co/blog/feed.xml', allowedHosts: ['huggingface.co'], category: '开源' },
 ]
 
 const trustedHost = (host, allowed) => allowed.some(item => host === item || host.endsWith(`.${item}`))
@@ -52,7 +52,7 @@ function parseJsonLd(body) {
 function parseFeed(body) {
   const blocks = [...body.matchAll(/<(item|entry)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map(match => match[2])
   const value = (block, names) => { for (const name of names) { const match = block.match(new RegExp(`<${name}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${name}>`, 'i')); if (match) return text(match[1]) } return '' }
-  return blocks.map(block => ({ title: value(block, ['title']), url: value(block, ['link']) || block.match(/<link[^>]+href=["']([^"']+)/i)?.[1], publishedAt: value(block, ['pubDate', 'published', 'updated']), summary: value(block, ['description', 'summary', 'content']) }))
+  return blocks.map(block => ({ title: value(block, ['title']), url: value(block, ['link', 'guid']) || block.match(/<link[^>]+href=["']([^"']+)/i)?.[1], publishedAt: value(block, ['pubDate', 'published', 'updated']), summary: value(block, ['description', 'summary', 'content']) }))
 }
 
 function parseArticles(body, baseUrl) {
@@ -67,7 +67,7 @@ function parseArticles(body, baseUrl) {
 }
 
 export async function fetchWeeklySource(source, { fetcher = fetch, now = new Date(), timeoutMs = 10_000, maxBytes = 2_000_000 } = {}) {
-  const response = await fetcher(source.url, { headers: { Accept: 'application/rss+xml, application/atom+xml, text/html;q=0.9' }, signal: AbortSignal.timeout(timeoutMs), redirect: 'follow' })
+  const response = await fetcher(source.url, { headers: { Accept: 'application/rss+xml, application/atom+xml, text/html;q=0.9', 'User-Agent': 'SiyuWeekly/1.0' }, signal: AbortSignal.timeout(timeoutMs), redirect: 'follow' })
   if (!response.ok) throw new Error(`${source.organization} 请求失败（${response.status || 'unknown'}）`)
   const finalUrl = new URL(response.url || source.url)
   if (finalUrl.protocol !== 'https:' || !trustedHost(finalUrl.hostname, source.allowedHosts)) throw new Error('来源域名不受信任')
@@ -77,5 +77,7 @@ export async function fetchWeeklySource(source, { fetcher = fetch, now = new Dat
   if (body.length > maxBytes) throw new Error('响应内容过大')
   const entries = /<(rss|feed)\b/i.test(body) ? parseFeed(body) : [...parseJsonLd(body), ...parseArticles(body, finalUrl)]
   if (!entries.length) throw new Error('来源格式未识别')
-  return normalizeWeeklyItems(source, entries, now)
+  const items = normalizeWeeklyItems(source, entries, now)
+  if (!items.length) throw new Error('没有最近 7 天的可用消息')
+  return items
 }

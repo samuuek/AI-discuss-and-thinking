@@ -34,3 +34,15 @@ test('parses semantic article cards from official HTML pages', async () => {
   expect(items[0].url).toBe('https://openai.com/index/card-model/')
   expect(items[0].summary).toBe('Card summary')
 })
+
+test('uses an RSS guid when an official feed omits the link element', async () => {
+  const feedSource = { ...source, url: 'https://openai.com/news/rss.xml' }
+  const body = `<rss><channel><item><title>Feed model</title><guid>https://openai.com/index/feed-model/</guid><pubDate>Sat, 15 Aug 2026 00:00:00 GMT</pubDate><description>Feed summary</description></item></channel></rss>`
+  const items = await fetchWeeklySource(feedSource, { now: new Date('2026-08-16T00:00:00Z'), fetcher: async () => ({ ok: true, url: feedSource.url, headers: new Headers({ 'content-type': 'application/rss+xml' }), text: async () => body }) })
+  expect(items).toMatchObject([{ title: 'Feed model', url: 'https://openai.com/index/feed-model/', summary: 'Feed summary' }])
+})
+
+test('reports a source error when parsing produces no recent items', async () => {
+  const oldArticle = `<script type="application/ld+json">{"@type":"BlogPosting","headline":"Old news","datePublished":"2026-07-01T00:00:00Z","url":"https://openai.com/index/old-news/"}</script>`
+  await expect(fetchWeeklySource(source, { now: new Date('2026-08-16T00:00:00Z'), fetcher: async () => ({ ok: true, url: source.url, headers: new Headers(), text: async () => oldArticle }) })).rejects.toThrow('没有最近 7 天的可用消息')
+})
