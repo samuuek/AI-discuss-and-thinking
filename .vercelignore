@@ -1,1 +1,7 @@
 api/*.test.mjs
+.env
+.env.local
+data/
+.vercel/
+exports/
+output/
