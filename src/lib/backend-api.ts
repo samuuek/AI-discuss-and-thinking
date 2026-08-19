@@ -1,4 +1,5 @@
 import type { Topic } from '../features/topics/topic-data'
+import { authorizedFetch } from './access-token'
 
 export type StoredMessage = { id: string; role: 'user' | 'assistant' | 'system'; content: string; modelId?: string; createdAt: string }
 export type WorkspaceData = {
@@ -14,7 +15,7 @@ export type WorkspaceData = {
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init)
+  const response = await authorizedFetch(url, init)
   const data = await response.json() as T & { error?: string }
   if (!response.ok) throw new Error(data.error || '本地服务请求失败')
   return data
