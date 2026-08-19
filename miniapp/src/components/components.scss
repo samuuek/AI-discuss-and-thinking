@@ -1,0 +1,8 @@
+.page-state { min-height: 360px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px; color: #71807b; text-align: center; }
+.page-state button { color: #246e63; background: #e7efeb; border: 0; }
+.topic-card { margin-bottom: 24px; padding: 30px 28px; background: #fff; border: 1px solid #dce4df; border-left: 8px solid #4f8b80; border-radius: 16px; box-shadow: 0 10px 32px rgba(30,64,55,.05); }
+.topic-card.color-blue { border-left-color: #668fa3; }.topic-card.color-amber { border-left-color: #be8d4b; }
+.topic-meta { display: flex; justify-content: space-between; color: #668078; font-size: 22px; }
+.topic-title { display: block; margin: 20px 0 12px; font-family: serif; font-size: 36px; line-height: 1.45; }
+.topic-summary { display: block; color: #71807b; font-size: 25px; line-height: 1.7; }
+.topic-open { display: block; margin-top: 22px; color: #24796c; font-size: 24px; }
