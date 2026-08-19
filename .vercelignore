@@ -5,3 +5,8 @@ data/
 .vercel/
 exports/
 output/
+miniapp/node_modules/
+miniapp/dist/
+miniapp/.swc/
+miniapp/.env*
+miniapp/project.private.config.json

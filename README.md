@@ -86,3 +86,7 @@ npm run build
 ```
 
 这些命令分别运行自动化测试、TypeScript 检查和生产构建。
+
+## 微信小程序
+
+微信测试版位于 [`miniapp`](miniapp)，使用 Taro + React 构建，与网站共用数据。编译、微信开发者工具导入和安卓手机预览步骤见 [`miniapp/README.md`](miniapp/README.md)。
