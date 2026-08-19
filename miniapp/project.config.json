@@ -1,0 +1,13 @@
+{
+  "appid": "touristappid",
+  "projectname": "思屿",
+  "description": "思屿微信小程序测试版",
+  "miniprogramRoot": "dist/",
+  "compileType": "miniprogram",
+  "setting": {
+    "es6": false,
+    "postcss": false,
+    "minified": false,
+    "urlCheck": false
+  }
+}
