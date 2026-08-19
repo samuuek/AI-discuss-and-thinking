@@ -26,6 +26,20 @@ describe('local HTTP API', () => {
     expect(payload.topics).toHaveLength(3)
   })
 
+  test('keeps health public while protecting personal data when configured', async () => {
+    await new Promise(resolve => server.close(resolve))
+    server = createApiServer({ store, env: { SIYU_PRIVATE_ACCESS_TOKEN: 'private-test-token' } })
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+    origin = `http://127.0.0.1:${server.address().port}`
+
+    const health = await fetch(`${origin}/api/health`)
+    expect(health.status).toBe(200)
+    expect((await health.json()).privateAccessRequired).toBe(true)
+    expect((await fetch(`${origin}/api/topics`)).status).toBe(401)
+    const authorized = await fetch(`${origin}/api/topics`, { headers: { Authorization: 'Bearer private-test-token' } })
+    expect(authorized.status).toBe(200)
+  })
+
   test('creates one stable set of daily topics and does not duplicate it on refresh', async () => {
     await new Promise(resolve => server.close(resolve))
     server = createApiServer({ store, env: {}, now: () => new Date('2026-08-18T02:00:00.000Z') })
