@@ -52,7 +52,7 @@ describe('Vercel API entry', () => {
 
     expect(response.statusCode).toBe(200)
     expect(response.headers).toMatchObject({ 'Content-Type': 'application/json; charset=utf-8' })
-    expect(JSON.parse(response.body)).toEqual({ ok: true, database: 'ready' })
+    expect(JSON.parse(response.body)).toEqual({ ok: true, database: 'ready', privateAccessRequired: false })
   })
 
   test('returns a safe unavailable response when DATABASE_URL is missing', async () => {
@@ -148,6 +148,6 @@ describe('Vercel API entry', () => {
     await response.finished
 
     expect(response.statusCode).toBe(200)
-    expect(JSON.parse(response.body)).toEqual({ ok: true, database: 'ready' })
+    expect(JSON.parse(response.body)).toEqual({ ok: true, database: 'ready', privateAccessRequired: false })
   })
 })

@@ -72,7 +72,7 @@ AI 周报使用相同的安全往返方式：思屿只把页面中列出的官�
 
 ## 安全与回滚
 
-- 当前项目没有用户登录和访问控制。Vercel Preview 仅适合个人试用；不要在可公开访问的部署中保存私密内容，也不要把预览链接广泛分享。
+- 个人使用时可在 Vercel 中把 `SIYU_PRIVATE_ACCESS_TOKEN` 保存为 Sensitive。启用后，网页会要求在当前设备输入口令，口令只保存在浏览器本地；健康检查仍保持公开且不会返回口令。
 - 回滚应用代码时，在 Vercel Deployments 中选择上一个正常部署并 Promote/Redeploy。
 - 数据库结构不会随代码回滚。变更 schema 前应先创建 Neon 分支或快照；需要回退时切回原分支/恢复备份，并同步更新 Vercel 的 `DATABASE_URL` 后重新部署。
 - 删除 Vercel 项目不会自动删除 Neon 数据，删除 Neon 项目也不会自动移除 Vercel 环境变量，需要分别处理。

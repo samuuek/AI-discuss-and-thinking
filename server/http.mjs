@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto'
 import { chatWithModel, publicModels } from './models.mjs'
 import { fetchWeeklySource, WEEKLY_SOURCES } from './weekly-sources.mjs'
 import { dailyTopicDrafts } from './daily-topics.mjs'
+import { authorizePrivateRequest } from './private-access.mjs'
 
 class ApiError extends Error {
   constructor(message, status = 400, code = 'VALIDATION_ERROR') { super(message); this.status = status; this.code = code }
@@ -60,7 +61,11 @@ export async function handleApiRequest(request, response, { store, env = process
   const url = new URL(request.url, 'http://localhost')
   const path = decodeURIComponent(url.pathname)
   try {
-      if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'ready' })
+      if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'ready', privateAccessRequired: Boolean(String(env.SIYU_PRIVATE_ACCESS_TOKEN || '').trim()) })
+      if (path.startsWith('/api/')) {
+        const access = authorizePrivateRequest(request, env)
+        if (!access.ok) return send(response, access.status, { error: access.message, code: 'UNAUTHORIZED' })
+      }
       if (request.method === 'GET' && path === '/api/models') return send(response, 200, { models: publicModels(env) })
       if (request.method === 'GET' && path === '/api/weekly') {
         const snapshot = await store.getWeeklySnapshot(new Date())

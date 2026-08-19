@@ -5,7 +5,7 @@ export type WeeklyAnalysis = { analystId: string; fingerprint: string; markdown:
 export type WeeklySnapshot = { items: WeeklyItem[]; sources: WeeklySourceStatus[]; updatedAt?: string; stale: boolean; analyses: WeeklyAnalysis[] }
 
 async function request(url: string, init?: RequestInit): Promise<WeeklySnapshot> {
-  const response = await fetch(url, init)
+  const response = await authorizedFetch(url, init)
   const data = await response.json() as WeeklySnapshot & { error?: string }
   if (!response.ok) throw new Error(data.error || '周报请求失败')
   return data
@@ -15,8 +15,9 @@ export const fetchWeekly = () => request('/api/weekly')
 export const refreshWeekly = () => request('/api/weekly/refresh', { method: 'POST' })
 
 export async function saveWeeklyAnalysis(input: { analystId: string; fingerprint: string; markdown: string }): Promise<WeeklyAnalysis> {
-  const response = await fetch('/api/weekly/analyses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
+  const response = await authorizedFetch('/api/weekly/analyses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) })
   const data = await response.json() as { analysis?: WeeklyAnalysis; error?: string }
   if (!response.ok || !data.analysis) throw new Error(data.error || '保存分析失败')
   return data.analysis
 }
+import { authorizedFetch } from '../../lib/access-token'
