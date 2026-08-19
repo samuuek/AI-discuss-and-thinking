@@ -8,3 +8,12 @@ page {
 button {
   margin: 0;
 }
+
+.unlock-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px; }
+.unlock-card { width: 100%; padding: 44px 34px; background: #fff; border: 1px solid #d9e0db; border-radius: 20px; }
+.unlock-eyebrow { display: block; color: #287468; font-size: 24px; }
+.unlock-title { display: block; margin: 14px 0; font-family: serif; font-size: 52px; font-weight: 600; }
+.unlock-copy { display: block; color: #71807b; line-height: 1.7; }
+.unlock-card input { margin: 34px 0 18px; padding: 24px; border: 1px solid #cbd7d1; border-radius: 14px; background: #fff; }
+.unlock-error { display: block; margin-bottom: 14px; color: #9a523c; }
+.primary-button { color: #fff; background: #246e63; border: 0; border-radius: 14px; }
