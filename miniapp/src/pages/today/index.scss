@@ -1,0 +1,7 @@
+.page { min-height: 100vh; padding: 42px 28px 120px; box-sizing: border-box; }
+.eyebrow { display: block; color: #24796c; font-size: 23px; font-weight: 600; }
+.page-title { display: block; margin: 18px 0; font-family: serif; font-size: 52px; font-weight: 600; line-height: 1.25; }
+.lead { display: block; color: #71807b; font-size: 27px; line-height: 1.75; }
+.new-topic { display: flex; gap: 14px; margin: 42px 0 56px; padding: 14px; background: #fff; border: 1px solid #d7e0db; border-radius: 16px; }
+.new-topic input { flex: 1; padding: 14px; }.new-topic button { color: #fff; background: #246e63; border: 0; font-size: 24px; }
+.section-title { display: block; margin-bottom: 24px; font-family: serif; font-size: 34px; }
