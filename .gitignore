@@ -8,3 +8,6 @@ tmp/
 data/
 .worktrees/
 .vercel
+miniapp/.env*
+miniapp/project.private.config.json
+miniapp/dist/
