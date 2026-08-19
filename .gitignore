@@ -13,3 +13,4 @@ output/
 miniapp/.env*
 miniapp/project.private.config.json
 miniapp/dist/
+miniapp/.swc/
