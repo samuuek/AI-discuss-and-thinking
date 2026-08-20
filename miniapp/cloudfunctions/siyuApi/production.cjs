@@ -1,18 +1,15 @@
-const { createSiyuService } = require('./core.cjs')
 const { createCloudHandler } = require('./handler.cjs')
 const { createCloudRepository } = require('./repository.cjs')
-const { createWeeklyRefresher } = require('./weekly-refresh.cjs')
-const { WEEKLY_SOURCES, fetchWeeklySource } = require('./weekly-sources.cjs')
+const { createWebApiService } = require('./web-api-service.cjs')
 
-function createProductionHandler({ cloud, fetcher }) {
+function createProductionHandler({ cloud, fetcher, env = process.env }) {
   cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })
   const repository = createCloudRepository(cloud.database())
-  const weeklyRefresher = createWeeklyRefresher({
-    sources: WEEKLY_SOURCES,
-    fetchSource: fetchWeeklySource,
+  const service = createWebApiService({
+    baseUrl: env.SIYU_WEB_API_BASE_URL,
+    accessToken: env.SIYU_PRIVATE_ACCESS_TOKEN,
     fetcher,
   })
-  const service = createSiyuService({ repository, weeklyRefresher })
   return createCloudHandler({
     repository,
     service,
