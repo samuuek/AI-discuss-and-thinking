@@ -1,7 +1,7 @@
 {
-  "appid": "touristappid",
-  "projectname": "思屿",
-  "description": "思屿微信小程序测试版",
+  "appid": "wxb652ab7130eb1b4a",
+  "projectname": "思屿日记",
+  "description": "思屿日记微信小程序",
   "miniprogramRoot": "dist/",
   "compileType": "miniprogram",
   "setting": {
