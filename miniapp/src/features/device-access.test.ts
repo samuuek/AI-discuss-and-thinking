@@ -1,16 +1,21 @@
 import { expect, test, vi } from 'vitest'
-import { validateDeviceAccess } from './device-access'
+import { checkCloudAccess, describeCloudAccessError } from './device-access'
 
-test('rejects an empty private access token without making a request', async () => {
-  const verify = vi.fn()
-  await expect(validateDeviceAccess('  ', verify)).rejects.toThrow('请输入私人访问口令')
-  expect(verify).not.toHaveBeenCalled()
+test('opens after the owner-locked cloud health check succeeds', async () => {
+  const health = vi.fn().mockResolvedValue({ ok: true })
+
+  await expect(checkCloudAccess(health)).resolves.toBe(true)
+  expect(health).toHaveBeenCalledOnce()
 })
 
-test('returns the trimmed token after the server accepts it', async () => {
-  await expect(validateDeviceAccess(' device-secret ', vi.fn().mockResolvedValue(true))).resolves.toBe('device-secret')
+test('translates a missing CloudBase environment into Chinese', () => {
+  expect(describeCloudAccessError({ errMsg: 'cloud.callFunction:fail environment not found' })).toBe('微信云环境尚未配置')
 })
 
-test('explains when the server rejects the token', async () => {
-  await expect(validateDeviceAccess('wrong', vi.fn().mockResolvedValue(false))).rejects.toThrow('口令不正确')
+test('preserves an already-Chinese application error', () => {
+  expect(describeCloudAccessError(new Error('此微信账号无权访问思屿'))).toBe('此微信账号无权访问思屿')
+})
+
+test('uses a Chinese fallback for an unknown cloud failure', () => {
+  expect(describeCloudAccessError(null)).toBe('微信云服务暂时不可用')
 })

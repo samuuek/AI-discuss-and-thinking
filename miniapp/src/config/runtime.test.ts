@@ -2,15 +2,15 @@ import { describe, expect, test, vi } from 'vitest'
 import { getRuntimeConfig } from './runtime'
 
 describe('getRuntimeConfig', () => {
-  test('removes the trailing slash from the HTTPS API address', () => {
-    expect(getRuntimeConfig({ TARO_APP_API_BASE_URL: 'https://example.com/' }).apiBaseUrl).toBe('https://example.com')
+  test('uses the configured WeChat CloudBase environment', () => {
+    expect(getRuntimeConfig({ TARO_APP_CLOUD_ENV_ID: 'siyu-prod-123' }).cloudEnvId).toBe('siyu-prod-123')
   })
 
-  test('rejects an insecure remote API address', () => {
-    expect(() => getRuntimeConfig({ TARO_APP_API_BASE_URL: 'http://example.com' })).toThrow('必须使用 HTTPS')
+  test('rejects an invalid CloudBase environment id', () => {
+    expect(() => getRuntimeConfig({ TARO_APP_CLOUD_ENV_ID: 'bad env id' })).toThrow('云环境 ID')
   })
 
-  test('loads the production API address without a Node process global', () => {
+  test('can use the app default CloudBase environment without a Node process global', () => {
     vi.stubGlobal('process', undefined)
     let result: ReturnType<typeof getRuntimeConfig> | undefined
     let error: unknown
@@ -24,6 +24,6 @@ describe('getRuntimeConfig', () => {
     }
 
     expect(error).toBeUndefined()
-    expect(result?.apiBaseUrl).toBe('https://temporary-prompt-ridge-2fk9bxn.vercel.app')
+    expect(result?.cloudEnvId).toBeUndefined()
   })
 })
