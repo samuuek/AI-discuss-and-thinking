@@ -1,7 +1,7 @@
 import { defineConfig } from '@tarojs/cli'
 
 export default defineConfig({
-  projectName: '思屿',
+  projectName: '思屿日记',
   date: '2026-08-19',
   designWidth: 750,
   deviceRatio: { 750: 1 },
