@@ -78,3 +78,24 @@ test('saves a weekly translation without discarding weekly items', async () => {
   assert.equal(snapshot.items[0].id, 'news-1')
   assert.equal(snapshot.analyses[0].analystId, 'weekly-translation')
 })
+
+test('refreshes weekly items while preserving saved analyses', async () => {
+  const repository = createMemoryRepository()
+  await repository.putWeekly({
+    items: [],
+    sources: [],
+    stale: true,
+    analyses: [{ analystId: 'weekly-translation', fingerprint: 'old', markdown: '[]', updatedAt: '2026-08-19T00:00:00Z' }],
+  })
+  const service = createSiyuService({
+    repository,
+    now: fixedNow,
+    randomId: () => 'unused',
+    weeklyRefresher: async () => ({ items: [{ id: 'news-2' }], sources: [{ id: 'openai' }], stale: false, updatedAt: '2026-08-20T01:00:00Z' }),
+  })
+
+  const refreshed = await service.execute('refreshWeekly')
+
+  assert.equal(refreshed.items[0].id, 'news-2')
+  assert.equal(refreshed.analyses[0].fingerprint, 'old')
+})

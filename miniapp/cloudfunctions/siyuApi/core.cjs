@@ -5,7 +5,7 @@ function cleanText(value, fallback = '') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback
 }
 
-function createSiyuService({ repository, now = () => new Date(), randomId = randomUUID }) {
+function createSiyuService({ repository, now = () => new Date(), randomId = randomUUID, weeklyRefresher }) {
   if (!repository) throw new TypeError('缺少云数据库仓库')
 
   return {
@@ -93,6 +93,15 @@ function createSiyuService({ repository, now = () => new Date(), randomId = rand
 
       if (action === 'fetchWeekly') {
         return await repository.getWeekly() || emptyWeekly()
+      }
+
+      if (action === 'refreshWeekly') {
+        if (typeof weeklyRefresher !== 'function') throw new Error('周报刷新服务未配置')
+        const current = await repository.getWeekly() || emptyWeekly()
+        const refreshed = await weeklyRefresher(current, now())
+        const snapshot = { ...refreshed, analyses: current.analyses || [] }
+        await repository.putWeekly(snapshot)
+        return snapshot
       }
 
       if (action === 'saveWeeklyAnalysis') {
