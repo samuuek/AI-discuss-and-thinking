@@ -6,6 +6,7 @@
     "dev:weapp": "taro build --type weapp --watch",
     "build:weapp": "taro build --type weapp",
     "test": "vitest run",
+    "test:cloud": "node --test cloudfunctions/siyuApi/*.test.cjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
