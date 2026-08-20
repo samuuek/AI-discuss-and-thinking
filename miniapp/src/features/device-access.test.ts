@@ -9,7 +9,11 @@ test('opens after the owner-locked cloud health check succeeds', async () => {
 })
 
 test('translates a missing CloudBase environment into Chinese', () => {
-  expect(describeCloudAccessError({ errMsg: 'cloud.callFunction:fail environment not found' })).toBe('微信云环境尚未配置')
+  expect(describeCloudAccessError({ errMsg: 'cloud.callFunction:fail environment not found' })).toBe('微信云环境尚未创建，请先在微信开发者工具中开通云开发')
+})
+
+test('explains that a cloud timeout can mean the function is not deployed', () => {
+  expect(describeCloudAccessError({ errMsg: 'cloud.callFunction:fail request:fail timeout' })).toBe('微信云函数连接超时，请确认 siyuApi 已部署后重试')
 })
 
 test('preserves an already-Chinese application error', () => {

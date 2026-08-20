@@ -5,9 +5,10 @@
   "scripts": {
     "dev:weapp": "taro build --type weapp --watch",
     "build:weapp": "taro build --type weapp",
-    "test": "vitest run",
+    "test": "vitest run && node --test tools/*.test.mjs",
     "test:cloud": "node --test cloudfunctions/siyuApi/*.test.cjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "archive": "node tools/create-archive.mjs"
   },
   "dependencies": {
     "@tarojs/components": "4.2.1",
