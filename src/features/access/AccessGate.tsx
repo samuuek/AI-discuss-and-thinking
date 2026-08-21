@@ -2,10 +2,45 @@ import { useEffect, useState, type PropsWithChildren } from 'react'
 import { getAccessToken, setAccessToken } from '../../lib/access-token'
 
 type AccessState = 'checking' | 'open' | 'locked' | 'error'
+
 export function AccessGate({ children }: PropsWithChildren) {
-  const [state, setState] = useState<AccessState>('checking'); const [token, setToken] = useState(''); const [message, setMessage] = useState('')
-  useEffect(() => { let active = true; (async () => { try { const health = await fetch('/api/health'); const data = await health.json() as { privateAccessRequired?: boolean }; if (!active) return; if (!data.privateAccessRequired) return setState('open'); const stored = getAccessToken(); if (!stored) return setState('locked'); const response = await fetch('/api/models', { headers: { Authorization: `Bearer ${stored}` } }); if (active) setState(response.ok ? 'open' : 'locked') } catch { if (active) setState('error') } })(); return () => { active = false } }, [])
-  async function unlock() { const value = token.trim(); if (!value) return setMessage('请输入私人访问口令'); setMessage(''); try { const response = await fetch('/api/models', { headers: { Authorization: `Bearer ${value}` } }); if (!response.ok) return setMessage('口令不正确，请重新输入'); setAccessToken(value); setState('open') } catch { setMessage('暂时无法连接，请稍后重试') } }
+  const [state, setState] = useState<AccessState>('checking')
+  const [token, setToken] = useState('')
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    let active = true
+    ;(async () => {
+      try {
+        const health = await fetch('/api/health')
+        const data = await health.json() as { privateAccessRequired?: boolean }
+        if (!active) return
+        if (!data.privateAccessRequired) return setState('open')
+        const stored = getAccessToken()
+        if (!stored) return setState('locked')
+        const response = await fetch('/api/models', { headers: { Authorization: `Bearer ${stored}` } })
+        if (active) setState(response.ok ? 'open' : 'locked')
+      } catch {
+        if (active) setState('error')
+      }
+    })()
+    return () => { active = false }
+  }, [])
+
+  async function unlock() {
+    const value = token.trim()
+    if (!value) return setMessage('请输入私人访问口令')
+    setMessage('')
+    try {
+      const response = await fetch('/api/models', { headers: { Authorization: `Bearer ${value}` } })
+      if (!response.ok) return setMessage('口令不正确，请重新输入')
+      setAccessToken(value)
+      setState('open')
+    } catch {
+      setMessage('暂时无法连接，请稍后重试')
+    }
+  }
+
   if (state === 'open') return children
   if (state === 'checking') return <main className="access-screen"><p>正在打开思屿…</p></main>
   if (state === 'error') return <main className="access-screen"><h1>暂时无法连接</h1><p>请检查网络后刷新页面。</p></main>

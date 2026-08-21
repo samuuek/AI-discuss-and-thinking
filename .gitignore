@@ -6,6 +6,8 @@ tmp/
 .env
 .env.local
 data/
+exports/
+output/
 .worktrees/
 .vercel
 miniapp/.env*

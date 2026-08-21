@@ -62,7 +62,10 @@ export async function handleApiRequest(request, response, { store, env = process
   const path = decodeURIComponent(url.pathname)
   try {
       if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'ready', privateAccessRequired: Boolean(String(env.SIYU_PRIVATE_ACCESS_TOKEN || '').trim()) })
-      if (path.startsWith('/api/')) { const access = authorizePrivateRequest(request, env); if (!access.ok) return send(response, access.status, { error: access.message, code: 'UNAUTHORIZED' }) }
+      if (path.startsWith('/api/')) {
+        const access = authorizePrivateRequest(request, env)
+        if (!access.ok) return send(response, access.status, { error: access.message, code: 'UNAUTHORIZED' })
+      }
       if (request.method === 'GET' && path === '/api/models') return send(response, 200, { models: publicModels(env) })
       if (request.method === 'GET' && path === '/api/weekly') {
         const snapshot = await store.getWeeklySnapshot(new Date())

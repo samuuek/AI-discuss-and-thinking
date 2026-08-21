@@ -42,11 +42,12 @@ AI 周报使用相同的安全往返方式：思屿只把页面中列出的官�
 ### 当前试用环境
 
 - Vercel 项目：[`temporary-prompt-ridge-2fk9bxn`](https://temporary-prompt-ridge-2fk9bxn.vercel.app)
+- GitHub 仓库：[`samuuek/AI-discuss-and-thinking`](https://github.com/samuuek/AI-discuss-and-thinking)
 - Neon 项目：`soft-voice-01969649`；数据库：`neondb`；分支：`br-shiny-thunder-af2oq7ij`
 - 数据库迁移：已执行并核对 6 张业务表和索引
+- 部署方式：已连接 GitHub，`main` 分支推送会创建 Production 源码部署，其他分支会创建 Preview 部署
+- 访问保护：`SIYU_PRIVATE_ACCESS_TOKEN` 已在 Production 和 Preview 中保存为 Sensitive；Preview 还受 Vercel 登录保护
 - 资源状态：仅使用 Vercel 与 Neon 免费资源，没有启用付费资源或自定义域名；剩余额度以两个服务控制台的实时 Usage 页面为准
-
-上面的 Vercel 地址目前来自一次预构建部署。环境变量已保存，但该部署不能直接 Redeploy 来应用新变量；需要先把本仓库连接到 Vercel，再触发一次新的源码部署。
 
 ### 1. 创建 Neon 数据库
 
@@ -59,7 +60,7 @@ AI 周报使用相同的安全往返方式：思屿只把页面中列出的官�
 1. 在 Vercel 导入本 GitHub 仓库，Framework Preset 选择 Vite。仓库中的 `vercel.json` 已配置构建目录、API 路由和单页应用回退。
 2. 在项目的 **Settings → Environment Variables** 中新增 `DATABASE_URL`，粘贴 Neon 连接字符串。
 3. 将变量设为 Sensitive，并按需要勾选 Preview、Production 和 Development；不要在构建日志、Issue 或截图中显示变量值。
-4. 保存后，从 Vercel 项目的 Git 设置连接或重新导入这个 GitHub 仓库，再推送一次提交或在 Git 源码部署中创建新部署。Vercel 会运行 `npm run build`，部署地址以项目 Deployments 页面显示的 URL 为准。不要对旧的 prebuilt 部署使用 Redeploy，它不会应用刚保存的环境变量。
+4. 保存后向已连接的 GitHub 分支推送一次提交。Vercel 会运行 `npm run build`，部署地址以项目 Deployments 页面显示的 URL 为准。环境变量轮换后必须创建新部署，运行中的旧部署不会自动读取新值。
 
 每个 Vercel 环境都应连接到预期的 Neon 数据库或分支。测试预览建议使用独立的 Neon 分支，避免测试数据进入正式库。
 
@@ -72,7 +73,7 @@ AI 周报使用相同的安全往返方式：思屿只把页面中列出的官�
 
 ## 安全与回滚
 
-- 个人使用时可在 Vercel 中把 `SIYU_PRIVATE_ACCESS_TOKEN` 保存为 Sensitive。启用后，网页与小程序都要求在当前设备输入口令，口令只保存在设备本地；健康检查不会返回口令。
+- 个人使用时可在 Vercel 中把 `SIYU_PRIVATE_ACCESS_TOKEN` 保存为 Sensitive。启用后，网页会要求在当前设备输入口令，口令只保存在浏览器本地；健康检查仍保持公开且不会返回口令。
 - 回滚应用代码时，在 Vercel Deployments 中选择上一个正常部署并 Promote/Redeploy。
 - 数据库结构不会随代码回滚。变更 schema 前应先创建 Neon 分支或快照；需要回退时切回原分支/恢复备份，并同步更新 Vercel 的 `DATABASE_URL` 后重新部署。
 - 删除 Vercel 项目不会自动删除 Neon 数据，删除 Neon 项目也不会自动移除 Vercel 环境变量，需要分别处理。
@@ -90,3 +91,5 @@ npm run build
 ## 微信小程序
 
 微信测试版位于 [`miniapp`](miniapp)，使用 Taro + React 构建，与网站共用数据。编译、微信开发者工具导入和安卓手机预览步骤见 [`miniapp/README.md`](miniapp/README.md)。
+
+日常使用、备份和故障排查见 [`docs/使用指导.md`](docs/使用指导.md)。后续使用新的 AI 账号接手维护时，先阅读 [`docs/AI接续说明.md`](docs/AI接续说明.md)。
