@@ -1,7 +1,9 @@
 type RuntimeEnv = Record<string, string | undefined>
 
 export function getRuntimeConfig(env: RuntimeEnv = {}) {
-  const apiBaseUrl = (env.TARO_APP_API_BASE_URL || 'https://temporary-prompt-ridge-2fk9bxn.vercel.app').replace(/\/$/, '')
-  if (!apiBaseUrl.startsWith('https://')) throw new Error('小程序接口必须使用 HTTPS')
-  return { apiBaseUrl }
+  const cloudEnvId = env.TARO_APP_CLOUD_ENV_ID?.trim() || undefined
+  if (cloudEnvId && !/^[a-z][a-z0-9-]{2,63}$/.test(cloudEnvId)) {
+    throw new Error('云环境 ID 格式不正确')
+  }
+  return { cloudEnvId }
 }

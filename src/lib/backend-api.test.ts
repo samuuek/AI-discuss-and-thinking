@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { createTopic, ensureDailyTopics, fetchTopics, fetchWorkspace, updateWorkspace } from './backend-api'
+import { setAccessToken } from './access-token'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => { vi.unstubAllGlobals(); localStorage.clear() })
 
 describe('backend API client', () => {
   test('loads topics from the local backend', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ topics: [{ id: 'one', title: '议题' }] }) }))
+    setAccessToken('device-secret')
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ topics: [{ id: 'one', title: '议题' }] }) })
+    vi.stubGlobal('fetch', fetcher)
     await expect(fetchTopics()).resolves.toEqual([{ id: 'one', title: '议题' }])
+    expect(new Headers(fetcher.mock.calls[0][1]?.headers).get('Authorization')).toBe('Bearer device-secret')
   })
 
   test('creates topics and saves workspace fields', async () => {

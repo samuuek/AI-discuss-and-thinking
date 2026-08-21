@@ -3,11 +3,13 @@
   "projectname": "思屿日记",
   "description": "思屿日记微信小程序",
   "miniprogramRoot": "dist/",
+  "cloudfunctionRoot": "cloudfunctions/",
   "compileType": "miniprogram",
   "setting": {
     "es6": false,
     "postcss": false,
     "minified": false,
     "urlCheck": false
-  }
+  },
+  "isGameTourist": false
 }
