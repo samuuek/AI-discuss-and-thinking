@@ -40,7 +40,7 @@
 - Neon 项目：`soft-voice-01969649`
 - Neon 数据库：`neondb`
 - Neon 分支：`br-shiny-thunder-af2oq7ij`
-- 已核验 schema：6 张业务表及索引
+- 目标 schema：7 张业务表及索引（第 7 张为 `model_credentials`；每次部署后重新核验线上迁移）
 - 资源约束：只使用免费资源；未启用付费资源和自定义域名
 
 Preview 部署受 Vercel 登录保护，不能把 Preview URL 当作公开生产入口。最新地址以 Vercel Deployments 页面为准。
@@ -51,6 +51,8 @@ Preview 部署受 Vercel 登录保护，不能把 Preview URL 当作公开生产
 
 - `DATABASE_URL`
 - `SIYU_PRIVATE_ACCESS_TOKEN`
+- `SIYU_CREDENTIAL_MASTER_KEY`
+- DeepSeek、豆包、千问和自定义模型的 API Key
 - `.env`、`.env.local` 的内容
 - 微信云函数加密环境变量值
 - Neon 连接字符串
@@ -118,6 +120,7 @@ git ls-files | Select-String -Pattern '(^|/)(\.env|\.env\.local|data|\.vercel|ex
 - 首个成功调用云函数的微信账号会成为私人空间所有者；更换微信账号不是普通登录切换，需要先评估数据归属和重置方式。
 - “免费网页版 AI”是提示词复制、外部网站对话、结果粘贴回思屿的人工往返，不应尝试读取或自动化用户的第三方账号密码。
 - Preview 受 Vercel SSO 保护；Production 由思屿自己的私人访问口令保护。
+- Production 与 Preview 如果共享同一个 Neon 数据库，必须使用同一个 `SIYU_CREDENTIAL_MASTER_KEY`；不得在共享 Preview 中写入或停用真实模型凭据。
 
 ## 9. 本地归档结构
 

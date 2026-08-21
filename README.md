@@ -6,7 +6,7 @@
 
 - 议题、思考空间与对话记录持久化
 - DeepSeek 免费网页版问答往返，无需 API Key
-- 豆包、通义千问、DeepSeek 和 OpenAI 兼容 API 的可选接入
+- DeepSeek API 可在网站中测试、加密保存和停用；豆包、通义千问及 OpenAI 兼容 API 仍可选接入
 - 从 OpenAI、Anthropic、Google DeepMind、Microsoft、Meta AI 和 Hugging Face 官方页面获取最近 7 天的消息
 - 把同一份周报材料交给 DeepSeek、通义千问和 Kimi 网页版分析，并在导入至少两份结果后生成交叉对照
 
@@ -27,7 +27,7 @@ npm run dev
 SIYU_DATABASE=data/siyu.db
 ```
 
-若需使用 API 模型，将 `.env.example` 复制为 `.env`，只在本机填写对应的 Key、Base URL 和模型名，然后重新启动。`.env` 和 `.env.local` 都已加入忽略规则；不要把真实密钥提交到 Git。
+本机仍兼容从 `.env` 读取 API 模型配置。DeepSeek 也可以在网页右上角“服务 → API 高级配置”中测试并保存：服务端必须先配置私人访问口令和独立的 32 字节 base64url 凭据主密钥。两者用途不同，禁止复用。`.env` 和 `.env.local` 都已加入忽略规则；不要把真实密钥提交到 Git。
 
 ## 免费网页模型如何工作
 
@@ -44,7 +44,7 @@ AI 周报使用相同的安全往返方式：思屿只把页面中列出的官�
 - Vercel 项目：[`temporary-prompt-ridge-2fk9bxn`](https://temporary-prompt-ridge-2fk9bxn.vercel.app)
 - GitHub 仓库：[`samuuek/AI-discuss-and-thinking`](https://github.com/samuuek/AI-discuss-and-thinking)
 - Neon 项目：`soft-voice-01969649`；数据库：`neondb`；分支：`br-shiny-thunder-af2oq7ij`
-- 数据库迁移：已执行并核对 6 张业务表和索引
+- 数据库结构：7 张业务表和索引（含加密模型凭据表；线上迁移状态以部署核验结果为准）
 - 部署方式：已连接 GitHub，`main` 分支推送会创建 Production 源码部署，其他分支会创建 Preview 部署
 - 访问保护：`SIYU_PRIVATE_ACCESS_TOKEN` 已在 Production 和 Preview 中保存为 Sensitive；Preview 还受 Vercel 登录保护
 - 资源状态：仅使用 Vercel 与 Neon 免费资源，没有启用付费资源或自定义域名；剩余额度以两个服务控制台的实时 Usage 页面为准
@@ -52,14 +52,14 @@ AI 周报使用相同的安全往返方式：思屿只把页面中列出的官�
 ### 1. 创建 Neon 数据库
 
 1. 在 Neon 创建一个 Postgres 项目和数据库。
-2. 在 Neon SQL Editor 中执行 [`server/schema.sql`](server/schema.sql)。该脚本可重复执行，会创建 6 张业务表、索引和初始议题。
+2. 在 Neon SQL Editor 中执行 [`server/schema.sql`](server/schema.sql)。该脚本可重复执行，会创建 7 张业务表、索引和初始议题。已有数据库只需执行具名迁移 [`server/migrations/2026-08-21-model-credentials.sql`](server/migrations/2026-08-21-model-credentials.sql)。
 3. 从 Neon 获取连接字符串，但不要写入仓库中的任何文件。
 
 ### 2. 部署到 Vercel
 
 1. 在 Vercel 导入本 GitHub 仓库，Framework Preset 选择 Vite。仓库中的 `vercel.json` 已配置构建目录、API 路由和单页应用回退。
-2. 在项目的 **Settings → Environment Variables** 中新增 `DATABASE_URL`，粘贴 Neon 连接字符串。
-3. 将变量设为 Sensitive，并按需要勾选 Preview、Production 和 Development；不要在构建日志、Issue 或截图中显示变量值。
+2. 在项目的 **Settings → Environment Variables** 中配置 `DATABASE_URL`、`SIYU_PRIVATE_ACCESS_TOKEN`，并为凭据保险箱独立生成 `SIYU_CREDENTIAL_MASTER_KEY`（32 字节 base64url）。
+3. 将三个变量设为 Sensitive。共享同一数据库的 Production 与 Preview 必须使用同一凭据主密钥；不要在构建日志、Issue 或截图中显示变量值。
 4. 保存后向已连接的 GitHub 分支推送一次提交。Vercel 会运行 `npm run build`，部署地址以项目 Deployments 页面显示的 URL 为准。环境变量轮换后必须创建新部署，运行中的旧部署不会自动读取新值。
 
 每个 Vercel 环境都应连接到预期的 Neon 数据库或分支。测试预览建议使用独立的 Neon 分支，避免测试数据进入正式库。
@@ -74,6 +74,7 @@ AI 周报使用相同的安全往返方式：思屿只把页面中列出的官�
 ## 安全与回滚
 
 - 个人使用时可在 Vercel 中把 `SIYU_PRIVATE_ACCESS_TOKEN` 保存为 Sensitive。启用后，网页会要求在当前设备输入口令，口令只保存在浏览器本地；健康检查仍保持公开且不会返回口令。
+- DeepSeek Key 只以 AES-256-GCM 密文保存，读取接口不会返回明文；网页备份、Git 和小程序归档都排除模型凭据。删除网站配置后，旧环境变量不会静默重新启用它。
 - 回滚应用代码时，在 Vercel Deployments 中选择上一个正常部署并 Promote/Redeploy。
 - 数据库结构不会随代码回滚。变更 schema 前应先创建 Neon 分支或快照；需要回退时切回原分支/恢复备份，并同步更新 Vercel 的 `DATABASE_URL` 后重新部署。
 - 删除 Vercel 项目不会自动删除 Neon 数据，删除 Neon 项目也不会自动移除 Vercel 环境变量，需要分别处理。

@@ -28,6 +28,8 @@ test('excludes local secrets, caches, dependencies, and prior archives', () => {
 test('finds credentials before an archive is produced', () => {
   assert.deepEqual(findSensitiveText('DATABASE_URL=postgresql://private'), ['数据库连接串', '数据库环境变量'])
   assert.deepEqual(findSensitiveText('SIYU_PRIVATE_ACCESS_TOKEN=private-value'), ['私人访问口令'])
+  assert.deepEqual(findSensitiveText('DEEPSEEK_API_KEY=synthetic-secret'), ['模型 API Key'])
+  assert.deepEqual(findSensitiveText('SIYU_CREDENTIAL_MASTER_KEY=synthetic-master-key'), ['凭据加密主密钥'])
 })
 
 test('collects only safe project files while retaining the compiled mini-program', async () => {

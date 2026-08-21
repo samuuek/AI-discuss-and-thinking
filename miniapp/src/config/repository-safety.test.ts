@@ -8,6 +8,8 @@ function sourceFiles(directory:string):string[]{return readdirSync(directory,{wi
 test('detects credentials that must never enter the mini-program package',()=>{
   expect(findSensitiveText('DATABASE_URL=private-value')).toContain('数据库环境变量')
   expect(findSensitiveText('postgresql://user:pass@example.test/db')).toContain('数据库连接串')
+  expect(findSensitiveText('DEEPSEEK_API_KEY=synthetic-secret')).toContain('模型 API Key')
+  expect(findSensitiveText('SIYU_CREDENTIAL_MASTER_KEY=synthetic-master-key')).toContain('凭据加密主密钥')
 })
 
 test('tracked mini-program source and config contain no private credentials',()=>{
