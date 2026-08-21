@@ -26,6 +26,20 @@ function weeklyAnalysisRow(row) {
   return { analystId: row.analyst_id, fingerprint: row.fingerprint, markdown: row.markdown, updatedAt: timestampValue(row.updated_at) }
 }
 
+function credentialRow(row) {
+  if (!row) return null
+  return {
+    provider: row.provider,
+    status: row.status,
+    ciphertext: row.ciphertext,
+    iv: row.iv,
+    authTag: row.auth_tag,
+    keyVersion: row.key_version,
+    providerModelId: row.provider_model_id,
+    updatedAt: timestampValue(row.updated_at),
+  }
+}
+
 export function createPostgresStore(sql) {
   if (typeof sql !== 'function' || typeof sql.query !== 'function' || typeof sql.transaction !== 'function') throw new TypeError('需要有效的 Postgres 查询适配器')
 
@@ -202,6 +216,46 @@ export function createPostgresStore(sql) {
         ? await query('analysis:list', `SELECT * FROM weekly_analyses WHERE fingerprint = $1 ORDER BY updated_at DESC`, [fingerprint])
         : await query('analysis:list', `SELECT * FROM weekly_analyses ORDER BY updated_at DESC`)
       return rows.map(weeklyAnalysisRow)
+    },
+
+    async getModelCredential(provider) {
+      const rows = await query('credential:get', `SELECT * FROM model_credentials WHERE provider = $1`, [provider])
+      return credentialRow(rows[0])
+    },
+
+    async saveModelCredential(record) {
+      const updatedAt = cleanText(record.updatedAt) || now()
+      const rows = await query('credential:save', `
+        INSERT INTO model_credentials (provider, status, ciphertext, iv, auth_tag, key_version, provider_model_id, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (provider) DO UPDATE SET
+          status = EXCLUDED.status,
+          ciphertext = EXCLUDED.ciphertext,
+          iv = EXCLUDED.iv,
+          auth_tag = EXCLUDED.auth_tag,
+          key_version = EXCLUDED.key_version,
+          provider_model_id = EXCLUDED.provider_model_id,
+          updated_at = EXCLUDED.updated_at
+        RETURNING *
+      `, [record.provider, 'ready', record.ciphertext, record.iv, record.authTag, record.keyVersion, record.providerModelId, updatedAt])
+      return credentialRow(rows[0])
+    },
+
+    async disableModelCredential(provider, updatedAt = now()) {
+      const rows = await query('credential:disable', `
+        INSERT INTO model_credentials (provider, status, ciphertext, iv, auth_tag, key_version, provider_model_id, updated_at)
+        VALUES ($1, $2, NULL, NULL, NULL, NULL, NULL, $3)
+        ON CONFLICT (provider) DO UPDATE SET
+          status = EXCLUDED.status,
+          ciphertext = NULL,
+          iv = NULL,
+          auth_tag = NULL,
+          key_version = NULL,
+          provider_model_id = NULL,
+          updated_at = EXCLUDED.updated_at
+        RETURNING *
+      `, [provider, 'disabled', updatedAt])
+      return credentialRow(rows[0])
     },
 
     async exportBackup() {

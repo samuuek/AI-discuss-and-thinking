@@ -41,6 +41,32 @@ describe('local database', () => {
     target.close()
   })
 
+  test('stores encrypted model credentials and excludes them from backup', () => {
+    const saved = store.saveModelCredential({
+      provider: 'deepseek',
+      status: 'ready',
+      ciphertext: 'synthetic-ciphertext',
+      iv: 'synthetic-iv',
+      authTag: 'synthetic-tag',
+      keyVersion: 1,
+      providerModelId: 'deepseek-v4-flash',
+    })
+
+    expect(store.getModelCredential('deepseek')).toEqual(saved)
+    expect(store.disableModelCredential('deepseek')).toMatchObject({
+      provider: 'deepseek',
+      status: 'disabled',
+      ciphertext: null,
+      iv: null,
+      authTag: null,
+      keyVersion: null,
+      providerModelId: null,
+    })
+    const backup = JSON.stringify(store.exportBackup())
+    expect(backup).not.toContain('synthetic-ciphertext')
+    expect(backup).not.toContain('model_credentials')
+  })
+
   test('preserves cached weekly items when a source refresh fails', () => {
     store.replaceWeeklySource('openai', [{ id: 'a', sourceId: 'openai', organization: 'OpenAI', title: 'A', url: 'https://openai.com/a', publishedAt: '2026-08-15T00:00:00Z', category: '产品', summary: 's', significance: '' }], '2026-08-16T00:00:00Z')
     store.replaceWeeklySource('meta', [{ id: 'b', sourceId: 'meta', organization: 'Meta AI', title: 'B', url: 'https://ai.meta.com/blog/b', publishedAt: '2026-08-15T00:00:00Z', category: '研究', summary: 's', significance: '' }], '2026-08-16T00:00:00Z')

@@ -11,6 +11,7 @@ class DeterministicQueryAdapter {
     this.weeklyItems = new Map()
     this.weeklySources = new Map()
     this.analyses = new Map()
+    this.credentials = new Map()
     this.sequence = 0
     this.failure = null
 
@@ -40,6 +41,7 @@ class DeterministicQueryAdapter {
     this.weeklyItems = draft.weeklyItems
     this.weeklySources = draft.weeklySources
     this.analyses = draft.analyses
+    this.credentials = draft.credentials
     this.sequence = draft.sequence
     return results
   }
@@ -53,6 +55,7 @@ class DeterministicQueryAdapter {
     draft.weeklyItems = copy(this.weeklyItems)
     draft.weeklySources = copy(this.weeklySources)
     draft.analyses = copy(this.analyses)
+    draft.credentials = copy(this.credentials)
     draft.sequence = this.sequence
     draft.failure = this.failure
     return draft
@@ -168,6 +171,19 @@ class DeterministicQueryAdapter {
         .filter(row => values.length === 0 || row.fingerprint === values[0])
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
     }
+    if (operation === 'credential:get') return this.credentials.has(values[0]) ? [this.credentials.get(values[0])] : []
+    if (operation === 'credential:save') {
+      const [provider, status, ciphertext, iv, auth_tag, key_version, provider_model_id, updated_at] = values
+      const row = { provider, status, ciphertext, iv, auth_tag, key_version, provider_model_id, updated_at }
+      this.credentials.set(provider, row)
+      return [row]
+    }
+    if (operation === 'credential:disable') {
+      const [provider, status, updated_at] = values
+      const row = { provider, status, ciphertext: null, iv: null, auth_tag: null, key_version: null, provider_model_id: null, updated_at }
+      this.credentials.set(provider, row)
+      return [row]
+    }
 
     throw new Error(`Unsupported test query: ${operation}`)
   }
@@ -252,6 +268,39 @@ describe('Postgres store contract', () => {
 
     expect(latest).toEqual({ analystId: 'deepseek-web', fingerprint: 'v1', markdown: '新分析', updatedAt: '2026-08-16T02:00:00.000Z' })
     await expect(store.listWeeklyAnalyses('v1')).resolves.toEqual([latest])
+  })
+
+  test('upserts and disables encrypted model credentials with parameterized values', async () => {
+    const saved = await store.saveModelCredential({
+      provider: 'deepseek',
+      status: 'ready',
+      ciphertext: 'synthetic-ciphertext',
+      iv: 'synthetic-iv',
+      authTag: 'synthetic-tag',
+      keyVersion: 1,
+      providerModelId: 'deepseek-v4-flash',
+      updatedAt: '2026-08-21T10:00:00.000Z',
+    })
+
+    await expect(store.getModelCredential('deepseek')).resolves.toEqual(saved)
+    expect(adapter.calls.find(call => call.text.includes('credential:save'))?.values).toEqual([
+      'deepseek',
+      'ready',
+      'synthetic-ciphertext',
+      'synthetic-iv',
+      'synthetic-tag',
+      1,
+      'deepseek-v4-flash',
+      '2026-08-21T10:00:00.000Z',
+    ])
+
+    await expect(store.disableModelCredential('deepseek', '2026-08-21T11:00:00.000Z')).resolves.toMatchObject({
+      provider: 'deepseek',
+      status: 'disabled',
+      ciphertext: null,
+      authTag: null,
+      providerModelId: null,
+    })
   })
 
   test('normalizes timestamp values returned as driver Date objects', async () => {

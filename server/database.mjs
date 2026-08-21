@@ -21,6 +21,20 @@ function messageRow(row) {
   return { id: row.id, role: row.role, content: row.content, modelId: row.model_id || undefined, createdAt: row.created_at }
 }
 
+function credentialRow(row) {
+  if (!row) return null
+  return {
+    provider: row.provider,
+    status: row.status,
+    ciphertext: row.ciphertext,
+    iv: row.iv,
+    authTag: row.auth_tag,
+    keyVersion: row.key_version,
+    providerModelId: row.provider_model_id,
+    updatedAt: row.updated_at,
+  }
+}
+
 export function createDatabase(filename = resolve('data', 'siyu.db'), options = {}) {
   if (filename !== ':memory:') mkdirSync(dirname(resolve(filename)), { recursive: true })
   const db = new DatabaseSync(filename)
@@ -57,6 +71,21 @@ export function createDatabase(filename = resolve('data', 'siyu.db'), options = 
     CREATE TABLE IF NOT EXISTS weekly_analyses (
       analyst_id TEXT NOT NULL, fingerprint TEXT NOT NULL, markdown TEXT NOT NULL, updated_at TEXT NOT NULL,
       PRIMARY KEY (analyst_id, fingerprint)
+    );
+    CREATE TABLE IF NOT EXISTS model_credentials (
+      provider TEXT PRIMARY KEY,
+      status TEXT NOT NULL CHECK(status IN ('ready','disabled')),
+      ciphertext TEXT,
+      iv TEXT,
+      auth_tag TEXT,
+      key_version INTEGER,
+      provider_model_id TEXT,
+      updated_at TEXT NOT NULL,
+      CHECK(
+        (status = 'ready' AND ciphertext IS NOT NULL AND iv IS NOT NULL AND auth_tag IS NOT NULL AND key_version IS NOT NULL AND provider_model_id IS NOT NULL)
+        OR
+        (status = 'disabled' AND ciphertext IS NULL AND iv IS NULL AND auth_tag IS NULL AND key_version IS NULL AND provider_model_id IS NULL)
+      )
     );
   `)
 
@@ -158,6 +187,26 @@ export function createDatabase(filename = resolve('data', 'siyu.db'), options = 
     listWeeklyAnalyses(fingerprint) {
       const rows = fingerprint ? db.prepare('SELECT * FROM weekly_analyses WHERE fingerprint=? ORDER BY updated_at DESC').all(fingerprint) : db.prepare('SELECT * FROM weekly_analyses ORDER BY updated_at DESC').all()
       return rows.map(row => ({ analystId: row.analyst_id, fingerprint: row.fingerprint, markdown: row.markdown, updatedAt: row.updated_at }))
+    },
+    getModelCredential(provider) {
+      return credentialRow(db.prepare('SELECT * FROM model_credentials WHERE provider = ?').get(provider))
+    },
+    saveModelCredential(record) {
+      const updatedAt = cleanText(record.updatedAt) || now()
+      db.prepare(`
+        INSERT INTO model_credentials (provider, status, ciphertext, iv, auth_tag, key_version, provider_model_id, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(provider) DO UPDATE SET status=excluded.status,ciphertext=excluded.ciphertext,iv=excluded.iv,auth_tag=excluded.auth_tag,key_version=excluded.key_version,provider_model_id=excluded.provider_model_id,updated_at=excluded.updated_at
+      `).run(record.provider, 'ready', record.ciphertext, record.iv, record.authTag, record.keyVersion, record.providerModelId, updatedAt)
+      return api.getModelCredential(record.provider)
+    },
+    disableModelCredential(provider, updatedAt = now()) {
+      db.prepare(`
+        INSERT INTO model_credentials (provider, status, ciphertext, iv, auth_tag, key_version, provider_model_id, updated_at)
+        VALUES (?, 'disabled', NULL, NULL, NULL, NULL, NULL, ?)
+        ON CONFLICT(provider) DO UPDATE SET status='disabled',ciphertext=NULL,iv=NULL,auth_tag=NULL,key_version=NULL,provider_model_id=NULL,updated_at=excluded.updated_at
+      `).run(provider, updatedAt)
+      return api.getModelCredential(provider)
     },
     exportBackup() {
       return { version: 1, exportedAt: now(), topics: api.listTopics().map(topic => ({ ...topic, workspace: api.getWorkspace(topic.id) })) }
