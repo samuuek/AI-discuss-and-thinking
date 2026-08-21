@@ -8,6 +8,13 @@ describe('local HTTP API', () => {
   let server
   let origin
 
+  async function restart(options) {
+    await new Promise(resolve => server.close(resolve))
+    server = createApiServer({ store, ...options })
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+    origin = `http://127.0.0.1:${server.address().port}`
+  }
+
   beforeEach(async () => {
     store = createDatabase(':memory:')
     server = createApiServer({ store, env: {}, fetcher: vi.fn() })
@@ -38,6 +45,96 @@ describe('local HTTP API', () => {
     expect((await fetch(`${origin}/api/topics`)).status).toBe(401)
     const authorized = await fetch(`${origin}/api/topics`, { headers: { Authorization: 'Bearer private-test-token' } })
     expect(authorized.status).toBe(200)
+  })
+
+  test.each([
+    ['GET', '/api/model-configs/deepseek', undefined],
+    ['POST', '/api/model-configs/deepseek/test', { apiKey: 'synthetic-key' }],
+    ['PUT', '/api/model-configs/deepseek', { apiKey: 'synthetic-key', providerModelId: 'deepseek-v4-flash' }],
+    ['DELETE', '/api/model-configs/deepseek', undefined],
+  ])('fails closed for %s %s when private access is not configured', async (method, path, body) => {
+    const response = await fetch(`${origin}${path}`, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    })
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: '请先启用私人访问保护', code: 'PRIVATE_ACCESS_REQUIRED' })
+  })
+
+  test.each([
+    ['GET', '/api/model-configs/deepseek', undefined],
+    ['POST', '/api/model-configs/deepseek/test', { apiKey: 'synthetic-key' }],
+    ['PUT', '/api/model-configs/deepseek', { apiKey: 'synthetic-key', providerModelId: 'deepseek-v4-flash' }],
+    ['DELETE', '/api/model-configs/deepseek', undefined],
+  ])('requires the correct bearer token for %s %s', async (method, path, body) => {
+    await restart({ env: { SIYU_PRIVATE_ACCESS_TOKEN: 'private-test-token' }, fetcher: vi.fn() })
+
+    const response = await fetch(`${origin}${path}`, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    })
+
+    expect(response.status).toBe(401)
+    expect(await response.json()).toEqual({ error: '私人访问验证失败', code: 'PRIVATE_ACCESS_UNAUTHORIZED' })
+  })
+
+  test('tests, saves, resolves, and disables a DeepSeek credential without returning the key', async () => {
+    const masterKey = Buffer.alloc(32, 7).toString('base64url')
+    const fetcher = vi.fn(async url => {
+      if (url.endsWith('/models')) return new Response(JSON.stringify({
+        object: 'list',
+        data: [{ id: 'deepseek-v4-flash', object: 'model', owned_by: 'deepseek' }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (url.endsWith('/chat/completions')) return new Response(JSON.stringify({ choices: [{ message: { content: '来自保险库的回答' } }] }), { status: 200 })
+      throw new Error('unexpected URL')
+    })
+    const env = {
+      SIYU_PRIVATE_ACCESS_TOKEN: 'private-test-token',
+      SIYU_CREDENTIAL_MASTER_KEY: masterKey,
+      DEEPSEEK_API_KEY: 'legacy-key',
+    }
+    await restart({ env, fetcher })
+    const headers = { Authorization: 'Bearer private-test-token', 'Content-Type': 'application/json' }
+
+    const initial = await fetch(`${origin}/api/model-configs/deepseek`, { headers })
+    expect(initial.headers.get('cache-control')).toBe('no-store')
+    expect(await initial.json()).toMatchObject({ status: 'ready', source: 'environment' })
+
+    const tested = await fetch(`${origin}/api/model-configs/deepseek/test`, {
+      method: 'POST', headers, body: JSON.stringify({ apiKey: 'synthetic-key' }),
+    })
+    expect(await tested.json()).toEqual({ models: ['deepseek-v4-flash'] })
+    expect(store.getModelCredential('deepseek')).toBeNull()
+
+    const saved = await fetch(`${origin}/api/model-configs/deepseek`, {
+      method: 'PUT', headers, body: JSON.stringify({ apiKey: 'synthetic-key', providerModelId: 'deepseek-v4-flash' }),
+    })
+    expect(saved.status).toBe(200)
+    expect(await saved.json()).toMatchObject({ status: 'ready', source: 'vault', providerModelId: 'deepseek-v4-flash' })
+    expect(JSON.stringify(store.getModelCredential('deepseek'))).not.toContain('synthetic-key')
+
+    const safeStatus = await fetch(`${origin}/api/model-configs/deepseek`, { headers }).then(response => response.json())
+    expect(safeStatus).not.toHaveProperty('apiKey')
+    expect(safeStatus).not.toHaveProperty('ciphertext')
+
+    const models = await fetch(`${origin}/api/models`, { headers }).then(response => response.json())
+    expect(models.models.find(model => model.id === 'deepseek-chat')?.available).toBe(true)
+
+    const chat = await fetch(`${origin}/api/chat`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'user', content: '你好' }] }),
+    })
+    expect(await chat.json()).toMatchObject({ content: '来自保险库的回答' })
+
+    const disabled = await fetch(`${origin}/api/model-configs/deepseek`, { method: 'DELETE', headers })
+    expect(await disabled.json()).toMatchObject({ status: 'disabled', source: null })
+    expect(store.getModelCredential('deepseek')).toMatchObject({ status: 'disabled', ciphertext: null })
+    const disabledModels = await fetch(`${origin}/api/models`, { headers }).then(response => response.json())
+    expect(disabledModels.models.find(model => model.id === 'deepseek-chat')?.available).toBe(false)
   })
 
   test('creates one stable set of daily topics and does not duplicate it on refresh', async () => {

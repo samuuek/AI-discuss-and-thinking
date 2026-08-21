@@ -19,4 +19,28 @@ describe('production model gateway', () => {
     await expect(chatWithModel({ model: 'deepseek-chat', messages: [{ role: 'user', content: '你好' }] }, { DEEPSEEK_API_KEY: 'secret' }, fetcher)).resolves.toBe('回答')
     expect(fetcher).toHaveBeenCalledWith('https://api.deepseek.com/chat/completions', expect.objectContaining({ headers: expect.objectContaining({ Authorization: 'Bearer secret' }) }))
   })
+
+  test('publishes vault availability without exposing its source or upstream model', () => {
+    const models = publicModels({}, { deepseekStatus: { status: 'ready', source: 'vault', providerModelId: 'deepseek-v4-flash' } })
+    const deepseek = models.find(model => model.id === 'deepseek-chat')
+
+    expect(deepseek).toMatchObject({ id: 'deepseek-chat', available: true })
+    expect(deepseek).not.toHaveProperty('source')
+    expect(JSON.stringify(deepseek)).not.toContain('deepseek-v4-flash')
+  })
+
+  test('uses a resolved vault key while keeping the stable gateway id', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: '回答' } }] }) })
+
+    await expect(chatWithModel(
+      { model: 'deepseek-chat', messages: [{ role: 'user', content: '你好' }] },
+      {},
+      fetcher,
+      { deepseekRuntime: { status: 'ready', source: 'vault', apiKey: 'vault-key', baseUrl: 'https://api.deepseek.com', providerModelId: 'deepseek-v4-flash' } },
+    )).resolves.toBe('回答')
+
+    const [, init] = fetcher.mock.calls[0]
+    expect(init.headers.Authorization).toBe('Bearer vault-key')
+    expect(JSON.parse(init.body).model).toBe('deepseek-v4-flash')
+  })
 })

@@ -6,18 +6,62 @@ import { chatWithModel, publicModels } from './models.mjs'
 import { fetchWeeklySource, WEEKLY_SOURCES } from './weekly-sources.mjs'
 import { dailyTopicDrafts } from './daily-topics.mjs'
 import { authorizePrivateRequest } from './private-access.mjs'
+import { CredentialKeyError } from './model-credential-crypto.mjs'
+import { DeepSeekProviderError } from './deepseek-client.mjs'
+import {
+  ModelCredentialServiceError,
+  disableDeepSeekConfig,
+  getDeepSeekConfig,
+  resolveDeepSeekRuntime,
+  saveDeepSeekConfig,
+  testDeepSeekConfig,
+} from './model-credential-service.mjs'
 
 class ApiError extends Error {
   constructor(message, status = 400, code = 'VALIDATION_ERROR') { super(message); this.status = status; this.code = code }
 }
 
-async function readJson(request) {
+async function readJson(request, limit = 1_000_000) {
   let body = ''
   for await (const chunk of request) {
     body += chunk
-    if (body.length > 1_000_000) throw new ApiError('请求内容过大', 413, 'PAYLOAD_TOO_LARGE')
+    if (body.length > limit) throw new ApiError('请求内容过大', 413, 'PAYLOAD_TOO_LARGE')
   }
   try { return JSON.parse(body || '{}') } catch { throw new ApiError('请求格式无效') }
+}
+
+function requireCredentialAccess(request, env) {
+  if (!String(env.SIYU_PRIVATE_ACCESS_TOKEN || '').trim()) {
+    throw new ApiError('请先启用私人访问保护', 503, 'PRIVATE_ACCESS_REQUIRED')
+  }
+  const access = authorizePrivateRequest(request, env)
+  if (!access.ok) throw new ApiError(access.message, 401, 'PRIVATE_ACCESS_UNAUTHORIZED')
+}
+
+function credentialApiKey(input) {
+  const apiKey = typeof input.apiKey === 'string' ? input.apiKey.trim() : ''
+  if (apiKey.length < 8 || apiKey.length > 512 || /[\u0000-\u001f\u007f]/.test(apiKey)) {
+    throw new ApiError('API Key 格式无效')
+  }
+  return apiKey
+}
+
+function providerModelId(input) {
+  const modelId = typeof input.providerModelId === 'string' ? input.providerModelId.trim() : ''
+  if (!modelId || modelId.length > 128 || /[\u0000-\u001f\u007f]/.test(modelId)) {
+    throw new ApiError('DeepSeek 模型无效')
+  }
+  return modelId
+}
+
+async function credentialAction(action) {
+  try {
+    return await action()
+  } catch (error) {
+    if (error instanceof ApiError || error instanceof DeepSeekProviderError || error instanceof ModelCredentialServiceError) throw error
+    if (error instanceof CredentialKeyError) throw new ApiError(error.message, 503, 'CREDENTIAL_MASTER_KEY_INVALID')
+    throw new ApiError('凭据存储暂时不可用', 503, 'CREDENTIAL_STORE_UNAVAILABLE')
+  }
 }
 
 const send = (response, status, data) => {
@@ -62,11 +106,41 @@ export async function handleApiRequest(request, response, { store, env = process
   const path = decodeURIComponent(url.pathname)
   try {
       if (request.method === 'GET' && path === '/api/health') return send(response, 200, { ok: true, database: 'ready', privateAccessRequired: Boolean(String(env.SIYU_PRIVATE_ACCESS_TOKEN || '').trim()) })
-      if (path.startsWith('/api/')) {
+      const credentialPath = path.startsWith('/api/model-configs/')
+      if (credentialPath) {
+        requireCredentialAccess(request, env)
+      } else if (path.startsWith('/api/')) {
         const access = authorizePrivateRequest(request, env)
         if (!access.ok) return send(response, access.status, { error: access.message, code: 'UNAUTHORIZED' })
       }
-      if (request.method === 'GET' && path === '/api/models') return send(response, 200, { models: publicModels(env) })
+      if (request.method === 'GET' && path === '/api/model-configs/deepseek') {
+        return send(response, 200, await credentialAction(() => getDeepSeekConfig({ store, env })))
+      }
+      if (request.method === 'POST' && path === '/api/model-configs/deepseek/test') {
+        const input = await readJson(request, 4_096)
+        return send(response, 200, await credentialAction(() => testDeepSeekConfig({ apiKey: credentialApiKey(input), fetcher })))
+      }
+      if (request.method === 'PUT' && path === '/api/model-configs/deepseek') {
+        const input = await readJson(request, 4_096)
+        return send(response, 200, await credentialAction(() => saveDeepSeekConfig({
+          store,
+          env,
+          apiKey: credentialApiKey(input),
+          providerModelId: providerModelId(input),
+          fetcher,
+        })))
+      }
+      if (request.method === 'DELETE' && path === '/api/model-configs/deepseek') {
+        return send(response, 200, await credentialAction(() => disableDeepSeekConfig({ store, now })))
+      }
+      if (request.method === 'GET' && path === '/api/models') {
+        try {
+          const deepseekStatus = await getDeepSeekConfig({ store, env })
+          return send(response, 200, { models: publicModels(env, { deepseekStatus }) })
+        } catch {
+          return send(response, 200, { models: publicModels(env) })
+        }
+      }
       if (request.method === 'GET' && path === '/api/weekly') {
         const snapshot = await store.getWeeklySnapshot(new Date())
         return send(response, 200, { ...snapshot, analyses: await store.listWeeklyAnalyses() })
@@ -126,12 +200,16 @@ export async function handleApiRequest(request, response, { store, env = process
       if (request.method === 'POST' && path === '/api/chat') {
         const input = await readJson(request)
         if (!input.model || !Array.isArray(input.messages) || input.messages.length === 0) throw new ApiError('请选择模型并输入消息')
-        if (!publicModels(env).some(model => model.id === input.model)) throw new ApiError('不支持的模型')
+        let deepseekRuntime
+        if (input.model === 'deepseek-chat') {
+          try { deepseekRuntime = await resolveDeepSeekRuntime({ store, env }) } catch { deepseekRuntime = undefined }
+        }
+        if (!publicModels(env, deepseekRuntime ? { deepseekStatus: deepseekRuntime } : undefined).some(model => model.id === input.model)) throw new ApiError('不支持的模型')
         if (input.messages.length > 500 || input.messages.some(message => !['system', 'user', 'assistant'].includes(message.role) || typeof message.content !== 'string' || !message.content.trim() || message.content.length > 200_000)) throw new ApiError('消息格式无效')
         if (input.topicId && !await store.getTopic(input.topicId)) throw new ApiError('思考空间不存在', 404, 'NOT_FOUND')
         const lastUser = [...input.messages].reverse().find(message => message.role === 'user')
         if (input.topicId && lastUser) await store.addMessage(input.topicId, { id: input.messageId || randomUUID(), role: 'user', content: lastUser.content })
-        const content = await chatWithModel(input, env, fetcher)
+        const content = await chatWithModel(input, env, fetcher, { deepseekRuntime })
         const message = input.topicId ? await store.addMessage(input.topicId, { role: 'assistant', content, modelId: input.model }) : null
         return send(response, 200, { content, message })
       }
@@ -144,9 +222,10 @@ export async function handleApiRequest(request, response, { store, env = process
       if (!path.startsWith('/api/') && await serveStatic(request, response, distDir)) return
       throw new ApiError('接口不存在', 404, 'NOT_FOUND')
   } catch (error) {
-    const status = error instanceof ApiError ? error.status : 503
-    const code = error instanceof ApiError ? error.code : 'SERVICE_UNAVAILABLE'
-    const message = error instanceof ApiError ? error.message : '服务暂时不可用'
+    const safeError = error instanceof ApiError || error instanceof DeepSeekProviderError || error instanceof ModelCredentialServiceError
+    const status = safeError ? error.status : 503
+    const code = safeError ? error.code : 'SERVICE_UNAVAILABLE'
+    const message = safeError ? error.message : '服务暂时不可用'
     send(response, status, { error: message, code })
   }
 }
