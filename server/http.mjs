@@ -38,6 +38,12 @@ function requireCredentialAccess(request, env) {
   if (!access.ok) throw new ApiError(access.message, 401, 'PRIVATE_ACCESS_UNAUTHORIZED')
 }
 
+function requireCredentialMutationAllowed(env) {
+  if (String(env.VERCEL_ENV || '').trim().toLowerCase() === 'preview') {
+    throw new ApiError('Preview 环境禁止修改正式模型凭据', 403, 'CREDENTIAL_PREVIEW_WRITE_FORBIDDEN')
+  }
+}
+
 function credentialApiKey(input) {
   const apiKey = typeof input.apiKey === 'string' ? input.apiKey.trim() : ''
   if (apiKey.length < 8 || apiKey.length > 512 || /[\u0000-\u001f\u007f]/.test(apiKey)) {
@@ -121,6 +127,7 @@ export async function handleApiRequest(request, response, { store, env = process
         return send(response, 200, await credentialAction(() => testDeepSeekConfig({ apiKey: credentialApiKey(input), fetcher })))
       }
       if (request.method === 'PUT' && path === '/api/model-configs/deepseek') {
+        requireCredentialMutationAllowed(env)
         const input = await readJson(request, 4_096)
         return send(response, 200, await credentialAction(() => saveDeepSeekConfig({
           store,
@@ -131,6 +138,7 @@ export async function handleApiRequest(request, response, { store, env = process
         })))
       }
       if (request.method === 'DELETE' && path === '/api/model-configs/deepseek') {
+        requireCredentialMutationAllowed(env)
         return send(response, 200, await credentialAction(() => disableDeepSeekConfig({ store, now })))
       }
       if (request.method === 'GET' && path === '/api/models') {
@@ -138,7 +146,7 @@ export async function handleApiRequest(request, response, { store, env = process
           const deepseekStatus = await getDeepSeekConfig({ store, env })
           return send(response, 200, { models: publicModels(env, { deepseekStatus }) })
         } catch {
-          return send(response, 200, { models: publicModels(env) })
+          return send(response, 200, { models: publicModels(env, { deepseekStatus: { status: 'needs_reentry', source: null } }) })
         }
       }
       if (request.method === 'GET' && path === '/api/weekly') {
@@ -202,9 +210,10 @@ export async function handleApiRequest(request, response, { store, env = process
         if (!input.model || !Array.isArray(input.messages) || input.messages.length === 0) throw new ApiError('请选择模型并输入消息')
         let deepseekRuntime
         if (input.model === 'deepseek-chat') {
-          try { deepseekRuntime = await resolveDeepSeekRuntime({ store, env }) } catch { deepseekRuntime = undefined }
+          try { deepseekRuntime = await resolveDeepSeekRuntime({ store, env }) }
+          catch { deepseekRuntime = { status: 'needs_reentry', source: null } }
         }
-        if (!publicModels(env, deepseekRuntime ? { deepseekStatus: deepseekRuntime } : undefined).some(model => model.id === input.model)) throw new ApiError('不支持的模型')
+        if (!publicModels(env, deepseekRuntime ? { deepseekStatus: deepseekRuntime } : undefined).some(model => model.id === input.model && model.available)) throw new ApiError('不支持的模型')
         if (input.messages.length > 500 || input.messages.some(message => !['system', 'user', 'assistant'].includes(message.role) || typeof message.content !== 'string' || !message.content.trim() || message.content.length > 200_000)) throw new ApiError('消息格式无效')
         if (input.topicId && !await store.getTopic(input.topicId)) throw new ApiError('思考空间不存在', 404, 'NOT_FOUND')
         const lastUser = [...input.messages].reverse().find(message => message.role === 'user')

@@ -137,6 +137,49 @@ describe('local HTTP API', () => {
     expect(disabledModels.models.find(model => model.id === 'deepseek-chat')?.available).toBe(false)
   })
 
+  test('refuses credential writes from a Vercel Preview deployment', async () => {
+    const fetcher = vi.fn()
+    await restart({
+      env: {
+        VERCEL_ENV: 'preview',
+        SIYU_PRIVATE_ACCESS_TOKEN: 'private-test-token',
+        SIYU_CREDENTIAL_MASTER_KEY: Buffer.alloc(32, 9).toString('base64url'),
+      },
+      fetcher,
+    })
+    const headers = { Authorization: 'Bearer private-test-token', 'Content-Type': 'application/json' }
+
+    const saved = await fetch(`${origin}/api/model-configs/deepseek`, {
+      method: 'PUT', headers, body: JSON.stringify({ apiKey: 'synthetic-key', providerModelId: 'deepseek-chat' }),
+    })
+    const disabled = await fetch(`${origin}/api/model-configs/deepseek`, { method: 'DELETE', headers })
+
+    expect(saved.status).toBe(403)
+    expect(await saved.json()).toEqual({ error: 'Preview 环境禁止修改正式模型凭据', code: 'CREDENTIAL_PREVIEW_WRITE_FORBIDDEN' })
+    expect(disabled.status).toBe(403)
+    expect(await disabled.json()).toEqual({ error: 'Preview 环境禁止修改正式模型凭据', code: 'CREDENTIAL_PREVIEW_WRITE_FORBIDDEN' })
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(store.getModelCredential('deepseek')).toBeNull()
+  })
+
+  test('fails DeepSeek closed when credential storage is unavailable even if a legacy key exists', async () => {
+    store.getModelCredential = vi.fn(async () => { throw new Error('synthetic storage failure') })
+    const fetcher = vi.fn()
+    const env = { SIYU_PRIVATE_ACCESS_TOKEN: 'private-test-token', DEEPSEEK_API_KEY: 'legacy-key' }
+    await restart({ env, fetcher })
+    const headers = { Authorization: 'Bearer private-test-token', 'Content-Type': 'application/json' }
+
+    const models = await fetch(`${origin}/api/models`, { headers }).then(response => response.json())
+    const chat = await fetch(`${origin}/api/chat`, {
+      method: 'POST', headers, body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'user', content: '你好' }] }),
+    })
+
+    expect(models.models.find(model => model.id === 'deepseek-chat')?.available).toBe(false)
+    expect(chat.status).toBe(400)
+    expect(await chat.json()).toEqual({ error: '不支持的模型', code: 'VALIDATION_ERROR' })
+    expect(fetcher).not.toHaveBeenCalled()
+  })
+
   test('creates one stable set of daily topics and does not duplicate it on refresh', async () => {
     await new Promise(resolve => server.close(resolve))
     server = createApiServer({ store, env: {}, now: () => new Date('2026-08-18T02:00:00.000Z') })
