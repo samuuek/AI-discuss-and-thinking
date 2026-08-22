@@ -44,7 +44,7 @@ AI 周报使用相同的安全往返方式：思屿只把页面中列出的官�
 - Vercel 项目：[`temporary-prompt-ridge-2fk9bxn`](https://temporary-prompt-ridge-2fk9bxn.vercel.app)
 - GitHub 仓库：[`samuuek/AI-discuss-and-thinking`](https://github.com/samuuek/AI-discuss-and-thinking)
 - Neon 项目：`soft-voice-01969649`；数据库：`neondb`；分支：`br-shiny-thunder-af2oq7ij`
-- 数据库结构：7 张业务表和索引（含加密模型凭据表；线上迁移状态以部署核验结果为准）
+- 数据库结构：已在线迁移并核验 7 张业务表和索引（含加密模型凭据表 `model_credentials`）
 - 部署方式：已连接 GitHub，`main` 分支推送会创建 Production 源码部署，其他分支会创建 Preview 部署
 - 访问保护：`SIYU_PRIVATE_ACCESS_TOKEN` 已在 Production 和 Preview 中保存为 Sensitive；Preview 还受 Vercel 登录保护
 - 资源状态：仅使用 Vercel 与 Neon 免费资源，没有启用付费资源或自定义域名；剩余额度以两个服务控制台的实时 Usage 页面为准

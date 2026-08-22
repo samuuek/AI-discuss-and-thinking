@@ -40,7 +40,7 @@
 - Neon 项目：`soft-voice-01969649`
 - Neon 数据库：`neondb`
 - Neon 分支：`br-shiny-thunder-af2oq7ij`
-- 目标 schema：7 张业务表及索引（第 7 张为 `model_credentials`；每次部署后重新核验线上迁移）
+- 当前 schema：已在线迁移并核验 7 张业务表及索引，第 7 张为 `model_credentials`；后续结构变更仍需重新核验。
 - 资源约束：只使用免费资源；未启用付费资源和自定义域名
 
 Preview 部署受 Vercel 登录保护，不能把 Preview URL 当作公开生产入口。最新地址以 Vercel Deployments 页面为准。
@@ -61,16 +61,20 @@ Preview 部署受 Vercel 登录保护，不能把 Preview URL 当作公开生产
 
 ## 5. 已验证状态
 
-2026-08-21 的本地证据：
+2026-08-22 的最新证据（部署基线提交 `06bdbb2`）：
 
-- 网页 Vitest：18 个测试文件、78 项测试通过。
+- 网页 Vitest：23 个测试文件、133 项测试通过。
 - 小程序 Vitest：10 个测试文件、27 项测试通过。
 - 小程序归档工具：4 项 Node 测试通过。
 - 微信云函数：24 项 Node 测试通过。
 - 网页 TypeScript/生产构建通过。
 - 小程序 TypeScript 检查与 Taro 微信构建通过。
 - Production `/api/health` 返回 `ok=true`、`database=ready`。
-- 使用本地保存的口令访问 Production `/api/models` 返回 HTTP 200；议题和周报读取成功。
+- 未带口令访问 Production 业务接口返回 HTTP 401；使用本地保存的口令访问 `/api/models` 返回 HTTP 200。
+- Production 已完成议题“创建、重新读取、删除清理”持久化闭环，最终恢复为 20 条；周报返回 7 条内容、6 个来源和 2 份分析。
+- DeepSeek 配置状态接口不会返回 Key、密文或认证标签；网页备份也不含模型凭据字段。
+- 生产页面已显示中文 DeepSeek 安全配置入口；390×844 手机尺寸无横向溢出，网页控制台无报错。
+- Neon 已核验 7 张业务表；GitHub `main` 和 Production 均以提交 `06bdbb2` 为当前部署基线。
 
 不要把本节当作永久状态。每次宣称“可用”“测试通过”或“已部署”前，必须重新运行相应检查。
 
